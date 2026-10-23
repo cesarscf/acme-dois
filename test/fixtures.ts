@@ -2,10 +2,11 @@ import { sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { member, organization, user } from "@/lib/db/schema"
 import type { Member } from "@/lib/member"
+import { createSetupAgent } from "@/lib/organization/agents"
 
 export async function resetDatabase() {
   await db.execute(
-    sql`TRUNCATE "user", organization, customer, appointment, message, transcript_entry CASCADE`,
+    sql`TRUNCATE "user", organization CASCADE`,
   )
 }
 
@@ -14,6 +15,7 @@ export async function createOrganization(...names: string[]): Promise<Member[]> 
   const organizationId = crypto.randomUUID()
   const now = new Date()
   await db.insert(organization).values({ id: organizationId, name: "Clínica", slug: organizationId, createdAt: now })
+  await createSetupAgent(organizationId)
   return Promise.all(
     names.map(async (name) => {
       const userId = crypto.randomUUID()

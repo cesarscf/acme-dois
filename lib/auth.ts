@@ -5,6 +5,7 @@ import { organization } from "better-auth/plugins/organization"
 import { asc, eq } from "drizzle-orm"
 import { db } from "./db"
 import * as schema from "./db/schema"
+import { createSetupAgent } from "./organization/agents"
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema }),
@@ -26,5 +27,12 @@ export const auth = betterAuth({
     },
   },
   // nextCookies must stay last: it sets the cookies of auth calls made inside Server Actions.
-  plugins: [organization(), nextCookies()],
+  plugins: [
+    organization({
+      organizationHooks: {
+        afterCreateOrganization: ({ organization }) => createSetupAgent(organization.id),
+      },
+    }),
+    nextCookies(),
+  ],
 })
