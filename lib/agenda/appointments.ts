@@ -146,8 +146,12 @@ export async function assignAppointment(member: Member, id: string, memberId: st
 
 // Cancelling is final: rescheduling books a new appointment instead of reopening this one.
 // `stale` when the appointment is no longer scheduled at the version `unchangedSince`.
-export async function cancelAppointment(member: Member, id: string, unchangedSince?: Date) {
-  const [cancelled] = await db
+export async function cancelAppointment(
+  member: Member,
+  id: string,
+  unchangedSince?: Date,
+): Promise<Appointment | "stale"> {
+  const [cancelled]: (Appointment | undefined)[] = await db
     .update(appointment)
     .set({ status: "cancelled" })
     .where(
