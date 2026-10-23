@@ -107,7 +107,7 @@ describe("the setup agent", () => {
     expect(requests[2].messages.at(-3)).toEqual({
       role: "user",
       content:
-        '[Aviso do Cuida, não escrito pelo membro] Ana tentou aplicar, mas nada foi feito em "Criar este agente?". Motivo: Já existe um agente com um desses nomes.',
+        '[Aviso do Acme, não escrito pelo membro] Ana tentou aplicar, mas nada foi feito em "Criar este agente?". Motivo: Já existe um agente com um desses nomes.',
     })
   })
 })
@@ -212,7 +212,7 @@ describe("actOnCard", () => {
     await sendMessage(ana, lia, "Obrigada", { model, now })
     expect(requests[0].messages.at(-3)).toEqual({
       role: "user",
-      content: '[Aviso do Cuida, não escrito pelo membro] Ana confirmou "Cancelar a sessão?".',
+      content: '[Aviso do Acme, não escrito pelo membro] Ana confirmou "Cancelar a sessão?".',
     })
   })
 
@@ -255,7 +255,7 @@ describe("actOnCard", () => {
 
     await sendMessage(ana, lia, "Valeu", { model, now })
     expect(requests[2].messages.at(-3)?.content).toStartWith(
-      '[Aviso do Cuida, não escrito pelo membro] Ana confirmou "Marcar a sessão?". Resultado: {"appointment_id":',
+      '[Aviso do Acme, não escrito pelo membro] Ana confirmou "Marcar a sessão?". Resultado: {"appointment_id":',
     )
 
     expect(await actOnCard(ana, lia, cards[1].id, "undo")).toMatchObject({ status: "undone" })

@@ -1,4 +1,4 @@
-# Cuida (acme-dois)
+# Acme (acme-dois)
 
 Uma versão mínima do `acme`: a clínica monta, conversando, uma equipe de agentes de IA que cuida da agenda. Só há uma tela, o chat, com a lista de agentes ao lado.
 

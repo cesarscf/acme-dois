@@ -142,7 +142,7 @@ const outcomes: Partial<Record<Card["status"], string>> = {
 // What the agent is told happened to its card, so the next turn knows.
 function noteOf(member: Member, card: Card, detail?: string) {
   const about = card.type === "receipt" ? `${card.title}: ${card.detail}` : card.title
-  return `[Aviso do Cuida, não escrito pelo membro] ${member.name} ${outcomes[card.status]} "${about}".${detail ? ` ${detail}` : ""}`
+  return `[Aviso do Acme, não escrito pelo membro] ${member.name} ${outcomes[card.status]} "${about}".${detail ? ` ${detail}` : ""}`
 }
 
 // `detail` tells the agent why nothing was done, or what was.
