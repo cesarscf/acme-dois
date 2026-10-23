@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk"
+import { sql } from "drizzle-orm"
 import {
   bigserial,
   index,
@@ -8,10 +9,11 @@ import {
   pgTable,
   text,
   timestamp,
+  uniqueIndex,
   uuid,
   type AnyPgColumn,
 } from "drizzle-orm/pg-core"
-import type { AgendaAction, Card } from "../agent/cards"
+import type { Card, CardAction } from "../agent/cards"
 import { member, organization } from "./auth-schema"
 
 export * from "./auth-schema"
@@ -68,9 +70,49 @@ export const appointment = pgTable(
   (table) => [index("appointment_organization_starts_idx").on(table.organizationId, table.startsAt)],
 )
 
+// How the organization works, as the setup agent learned it; every agent reads it.
+export const organizationProfile = pgTable("organization_profile", {
+  organizationId: text("organization_id")
+    .primaryKey()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  about: text("about").notNull(),
+  // What a new appointment lasts unless someone says otherwise.
+  appointmentMinutes: integer("appointment_minutes"),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+})
+
+// `setup` is the one agent every organization starts with, which builds the rest of the team.
+export const agentKind = pgEnum("agent_kind", ["setup", "team"])
+
+export const agent = pgTable(
+  "agent",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    organizationId: text("organization_id")
+      .notNull()
+      .references(() => organization.id, { onDelete: "cascade" }),
+    kind: agentKind("kind").notNull(),
+    name: text("name").notNull(),
+    role: text("role").notNull(),
+    // Its standing instructions: what it does for the organization and how.
+    instructions: text("instructions").notNull(),
+    // The tools it may use, and those of them it uses without asking a member first.
+    tools: text("tools").array().notNull(),
+    actsAlone: text("acts_alone").array().notNull(),
+    createdAt,
+  },
+  (table) => [
+    uniqueIndex("agent_setup_idx").on(table.organizationId).where(sql`${table.kind} = 'setup'`),
+    uniqueIndex("agent_name_idx").on(table.organizationId, sql`lower(${table.name})`),
+  ],
+)
+
 export const messageAuthor = pgEnum("message_author", ["member", "agent"])
 
-// The direct conversation between one member and the organization's agent, as the member sees it.
+// The direct conversation between one member and one agent, as the member sees it.
 export const message = pgTable(
   "message",
   {
@@ -78,14 +120,17 @@ export const message = pgTable(
     memberId: text("member_id")
       .notNull()
       .references(() => member.id, { onDelete: "cascade" }),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agent.id, { onDelete: "cascade" }),
     author: messageAuthor("author").notNull(),
     text: text("text"),
     card: jsonb("card").$type<Card>(),
     // What the card's buttons apply; never sent to the browser.
-    action: jsonb("action").$type<AgendaAction>(),
+    action: jsonb("action").$type<CardAction>(),
     createdAt,
   },
-  (table) => [index("message_member_idx").on(table.memberId, table.createdAt)],
+  (table) => [index("message_conversation_idx").on(table.memberId, table.agentId, table.createdAt)],
 )
 
 // What the model saw, in order, so each turn resends the same prefix and hits the cache.
@@ -96,7 +141,10 @@ export const transcriptEntry = pgTable(
     memberId: text("member_id")
       .notNull()
       .references(() => member.id, { onDelete: "cascade" }),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agent.id, { onDelete: "cascade" }),
     entry: jsonb("entry").$type<Anthropic.Beta.BetaMessageParam>().notNull(),
   },
-  (table) => [index("transcript_member_idx").on(table.memberId, table.seq)],
+  (table) => [index("transcript_conversation_idx").on(table.memberId, table.agentId, table.seq)],
 )
