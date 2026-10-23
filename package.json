@@ -4,12 +4,15 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "docker compose up -d --wait && bun run db:migrate && next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "next typegen && tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "bun lib/db/migrate.ts",
+    "test": "docker compose up -d --wait && bun test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.2.0",
