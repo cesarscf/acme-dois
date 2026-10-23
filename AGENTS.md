@@ -14,7 +14,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - The clinic is `organization` in code (as Better Auth names it); only the UI says "Clínica".
 - Server Components by default; `"use client"` only where the browser is needed.
 - Every read and change goes through a `Member` (`lib/member.ts`) and is scoped to its organization. Pages and Server Actions get it from `requireMember()` in `lib/dal.ts`.
-- Agent tools live in `lib/agent/tools.ts`. A change the agent makes returns a receipt card with an undo action; cancelling only ever returns an approval card.
+- Every organization has one setup agent (Acme Bot, `lib/agent/setup-tools.ts`) that builds the team of agenda agents (`lib/agent/agenda-tools.ts`). A team agent gets only the tools in its charter; a confirmable tool it may not use alone returns an approval card instead (`lib/agent/tool-registry.ts`).
+- A change an agent makes returns a receipt card with an undo action; cancelling only ever returns an approval card.
 - The model transcript is append-only (prompt caching). Never edit or delete `transcript_entry` rows.
 - Tests: `bun test`, against the `acme_test` database. Use `test/scripted-model.ts` instead of calling Claude.
 - Commits follow Conventional Commits (`feat:`, `fix:`, `refactor:`, `test:`, `chore:`, `docs:`).
