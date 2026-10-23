@@ -3,9 +3,11 @@ import { createOrganization, resetDatabase } from "@/test/fixtures"
 import { createAppointment, findAppointment, listAppointments } from "../agenda/appointments"
 import { createCustomer } from "../agenda/customers"
 import type { Member } from "../member"
-import { agendaTools, createToolRegistry, type ToolContext } from "./tools"
+import { agendaTools } from "./agenda-tools"
+import { createToolRegistry, type ToolContext } from "./tool-registry"
 
 const registry = createToolRegistry(agendaTools)
+const confirmable = agendaTools.filter((tool) => tool.confirm).map((tool) => tool.name)
 const timeZone = "America/Sao_Paulo"
 // Friday 2026-10-23, 09:00 in São Paulo.
 const now = new Date("2026-10-23T12:00:00Z")
@@ -19,7 +21,8 @@ beforeEach(async () => {
   await resetDatabase()
   ;[ana, bia] = await createOrganization("Ana", "Bia")
   carla = await createCustomer(ana, { name: "Carla" })
-  context = { member: ana, now, timeZone }
+  // Acting alone wherever it may, so each test reaches the tool itself.
+  context = { member: ana, now, timeZone, actsAlone: confirmable, appointmentMinutes: null }
 })
 
 const run = (name: string, input: unknown) =>
@@ -99,6 +102,7 @@ describe("create_appointment", () => {
       title: "Sessão marcada",
       detail: "Carla, sex 23/10, 15:00, com Ana.",
       status: "applied",
+      undoable: true,
     })
     const { appointment_id } = output(execution)
     const created = await findAppointment(ana, appointment_id)
@@ -185,4 +189,64 @@ describe("cancel_appointment", () => {
     )
     expect(execution.result).toMatchObject({ is_error: true, content: "Essa sessão não existe na agenda." })
   })
+})
+
+describe("an agent that may not act alone", () => {
+  const input = {
+    day: "2026-10-23",
+    time: "15:00",
+    duration_minutes: null,
+    kind: null,
+    member_id: null,
+  }
+
+  test("shows what it would do for a member to confirm, and changes nothing", async () => {
+    context.actsAlone = []
+    const execution = await run("create_appointment", { ...input, customer_id: carla.id })
+    expect(execution.card).toEqual({
+      type: "approval",
+      title: "Marcar a sessão?",
+      rows: [
+        { label: "Cliente", value: "Carla" },
+        { label: "Quando", value: "sex 23/10, 15:00 (50 min)" },
+        { label: "Atende", value: "Ana" },
+      ],
+      status: "pending",
+    })
+    expect(execution.action).toEqual({
+      kind: "apply",
+      tool: "create_appointment",
+      input: { ...input, customer_id: carla.id },
+    })
+    expect(await listAppointments(ana, { from: new Date(0), to: new Date("2100-01-01") })).toEqual([])
+  })
+
+  test("still refuses what it couldn't do, before asking", async () => {
+    context.actsAlone = []
+    const execution = await run("create_appointment", { ...input, customer_id: carla.id, time: "08:00" })
+    expect(execution.result).toMatchObject({ is_error: true, content: "Esse horário já passou." })
+    expect(execution.card).toBeUndefined()
+  })
+
+  test("does it once a member confirmed", async () => {
+    const execution = await registry.execute(
+      { id: "confirmed", name: "create_appointment", input: { ...input, customer_id: carla.id } },
+      { ...context, actsAlone: [], confirmed: true },
+    )
+    expect(execution.card).toMatchObject({ type: "receipt", title: "Sessão marcada" })
+  })
+})
+
+test("a new appointment lasts what the organization said", async () => {
+  context.appointmentMinutes = 40
+  const execution = await run("create_appointment", {
+    customer_id: carla.id,
+    day: "2026-10-23",
+    time: "15:00",
+    duration_minutes: null,
+    kind: null,
+    member_id: null,
+  })
+  const created = await findAppointment(ana, output(execution).appointment_id)
+  expect(created?.durationMinutes).toBe(40)
 })

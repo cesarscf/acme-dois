@@ -1,7 +1,5 @@
-import type Anthropic from "@anthropic-ai/sdk"
 import { z } from "zod"
 import {
-  AgendaError,
   assignAppointment,
   createAppointment,
   defaultAppointmentMinutes,
@@ -14,32 +12,12 @@ import { createCustomer, findCustomer, listCustomers } from "../agenda/customers
 import { listTeam } from "../agenda/team"
 import type { Member } from "../member"
 import { appointmentLabel, dayRange, timeIn, zonedInstant } from "../time"
-import type { AgendaAction, ApprovalCard, Card, ReceiptCard } from "./cards"
+import type { ApprovalCard, ReceiptCard } from "./cards"
+import { defineTool, type ToolContext, ToolRefusal } from "./tool-registry"
 
-// The agent changes the agenda as a member asks, each change in a Receipt with Undo. Cancelling is
-// never one of them: it always waits for a member's Approval, whatever the model asks for.
-
-export type ToolContext = {
-  // Tools read and change the organization's data as the member the turn acts for.
-  member: Member
-  now: Date
-  timeZone: string
-}
-
-// What a tool hands back: `output` goes to the model; a card, to the member.
-export type ToolOutput = { output: unknown; card?: Card; action?: AgendaAction }
-
-// A tool turning down its input with a reason the model can act on.
-export class ToolRefusal extends Error {}
-
-type Tool<Input extends z.ZodObject = z.ZodObject> = {
-  name: string
-  description: string
-  input: Input
-  run: (input: z.infer<Input>, context: ToolContext) => Promise<ToolOutput>
-}
-
-const defineTool = <Input extends z.ZodObject>(tool: Tool<Input>) => tool as unknown as Tool
+// A team agent changes the agenda as a member asks, each change in a Receipt with Undo, or first in
+// an Approval for what its charter doesn't let it do alone. Cancelling always waits for a member,
+// whatever the charter or the model says.
 
 const day = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("O dia, aaaa-mm-dd, no fuso da clínica.")
 const time = z.string().regex(/^\d{2}:\d{2}$/).describe("O horário, HH:MM, no fuso da clínica.")
@@ -57,19 +35,36 @@ async function teamNames(member: Member) {
   return new Map(team.map((teammate) => [teammate.id, teammate.name]))
 }
 
+async function teammate(member: Member, memberId: string) {
+  const name = (await teamNames(member)).get(memberId)
+  if (!name) throw new ToolRefusal(`${memberId} não é membro da equipe.`)
+  return name
+}
+
 const receipt = (title: string, detail: string): ReceiptCard => ({
   type: "receipt",
   title,
   detail,
   status: "applied",
+  undoable: true,
 })
 
 const shownNote = "Mostrei ao membro num recibo com Desfazer."
 
 const withWhom = (name: string | undefined) => (name ? `com ${name}` : "sem ninguém para atender")
 
+// A scheduled appointment of the organization, with its customer's name.
+async function scheduled(member: Member, appointmentId: string) {
+  const appointment = await findAppointment(member, appointmentId)
+  if (!appointment) throw new ToolRefusal("Essa sessão não existe na agenda.")
+  if (appointment.status !== "scheduled") throw new ToolRefusal("Essa sessão não está mais agendada.")
+  const customer = await findCustomer(member, appointment.customerId)
+  return { ...appointment, customer: customer?.name ?? "" }
+}
+
 export const findCustomersTool = defineTool({
   name: "find_customers",
+  label: "Procurar clientes",
   description:
     "Procura clientes da clínica pelo nome (ou lista todas, com query null). Devolve id e nome; use o id nas outras ferramentas.",
   input: z.object({ query: z.string().max(80).nullable() }),
@@ -80,6 +75,7 @@ export const findCustomersTool = defineTool({
 
 export const createCustomerTool = defineTool({
   name: "create_customer",
+  label: "Cadastrar clientes",
   description:
     "Cadastra uma cliente nova na clínica. Antes, confira com find_customers que ela ainda não existe.",
   input: z.object({
@@ -94,6 +90,7 @@ export const createCustomerTool = defineTool({
 
 export const readAgendaTool = defineTool({
   name: "read_agenda",
+  label: "Ler a agenda",
   description:
     "Lê as sessões de um dia na agenda da clínica: id, horário, cliente, duração, tipo, quem atende e situação (scheduled, done, missed, cancelled).",
   input: z.object({ day }),
@@ -117,23 +114,37 @@ export const readAgendaTool = defineTool({
   },
 })
 
+const minutesOf = (input: { duration_minutes: number | null }, context: ToolContext) =>
+  input.duration_minutes ?? context.appointmentMinutes ?? defaultAppointmentMinutes
+
 export const createAppointmentTool = defineTool({
   name: "create_appointment",
+  label: "Marcar sessões",
   description:
-    "Marca uma sessão para uma cliente. Sem member_id, quem atende é o membro que pediu. O membro vê a sessão num recibo com Desfazer.",
+    "Marca uma sessão para uma cliente. Sem member_id, quem atende é o membro que pediu. Sem duração, vale a da clínica.",
   input: z.object({
     customer_id: id,
     day,
     time,
-    duration_minutes: z
-      .int()
-      .min(5)
-      .max(480)
-      .nullable()
-      .describe(`A duração em minutos, ou null para ${defaultAppointmentMinutes}.`),
+    duration_minutes: z.int().min(5).max(480).nullable().describe("A duração em minutos, ou null."),
     kind: z.string().max(120).nullable().describe("O tipo, como Avaliação."),
     member_id: id.nullable().describe("Quem atende (id da equipe), ou null."),
   }),
+  async confirm(input, context) {
+    const startsAt = startOf(input, context)
+    const customer = await findCustomer(context.member, input.customer_id)
+    if (!customer) throw new ToolRefusal(`${input.customer_id} não é cliente da clínica.`)
+    const attending = await teammate(context.member, input.member_id ?? context.member.id)
+    return {
+      title: "Marcar a sessão?",
+      rows: [
+        { label: "Cliente", value: customer.name },
+        { label: "Quando", value: `${appointmentLabel(startsAt, context.timeZone)} (${minutesOf(input, context)} min)` },
+        { label: "Atende", value: attending },
+        ...(input.kind?.trim() ? [{ label: "Tipo", value: input.kind.trim() }] : []),
+      ],
+    }
+  },
   async run(input, context) {
     const { member, timeZone } = context
     const startsAt = startOf(input, context)
@@ -144,7 +155,7 @@ export const createAppointmentTool = defineTool({
       customerId: customer.id,
       memberId,
       startsAt,
-      durationMinutes: input.duration_minutes ?? undefined,
+      durationMinutes: minutesOf(input, context),
       kind: input.kind,
     })
     const names = await teamNames(member)
@@ -161,14 +172,29 @@ export const createAppointmentTool = defineTool({
 
 export const rescheduleAppointmentTool = defineTool({
   name: "reschedule_appointment",
+  label: "Remarcar sessões",
   description:
-    "Remarca uma sessão (o id vem de read_agenda) para outro dia e horário: a antiga é cancelada e uma nova fica no lugar. Sem member_id, quem atende continua o mesmo. O membro vê num recibo com Desfazer.",
+    "Remarca uma sessão (o id vem de read_agenda) para outro dia e horário: a antiga é cancelada e uma nova fica no lugar. Sem member_id, quem atende continua o mesmo.",
   input: z.object({
     appointment_id: id,
     day,
     time,
     member_id: id.nullable().describe("Quem passa a atender, ou null."),
   }),
+  async confirm(input, context) {
+    const startsAt = startOf(input, context)
+    const appointment = await scheduled(context.member, input.appointment_id)
+    const names = await teamNames(context.member)
+    return {
+      title: "Remarcar a sessão?",
+      rows: [
+        { label: "Cliente", value: appointment.customer },
+        { label: "De", value: appointmentLabel(appointment.startsAt, context.timeZone) },
+        { label: "Para", value: appointmentLabel(startsAt, context.timeZone) },
+        { label: "Atende", value: names.get(input.member_id ?? appointment.memberId ?? "") ?? "Ninguém" },
+      ],
+    }
+  },
   async run(input, context) {
     const { member, timeZone } = context
     const startsAt = startOf(input, context)
@@ -199,9 +225,20 @@ export const rescheduleAppointmentTool = defineTool({
 
 export const assignAppointmentTool = defineTool({
   name: "assign_appointment",
-  description:
-    "Define quem da equipe atende uma sessão (o id vem de read_agenda). O membro vê num recibo com Desfazer.",
+  label: "Trocar quem atende",
+  description: "Define quem da equipe atende uma sessão (o id vem de read_agenda).",
   input: z.object({ appointment_id: id, member_id: id.describe("Quem passa a atender.") }),
+  async confirm(input, context) {
+    const appointment = await scheduled(context.member, input.appointment_id)
+    return {
+      title: "Trocar quem atende?",
+      rows: [
+        { label: "Cliente", value: appointment.customer },
+        { label: "Sessão", value: appointmentLabel(appointment.startsAt, context.timeZone) },
+        { label: "Passa a atender", value: await teammate(context.member, input.member_id) },
+      ],
+    }
+  },
   async run(input, { member, timeZone }) {
     const { from, updated } = await assignAppointment(member, input.appointment_id, input.member_id)
     const [customer, names] = await Promise.all([
@@ -221,6 +258,7 @@ export const assignAppointmentTool = defineTool({
 
 export const cancelAppointmentTool = defineTool({
   name: "cancel_appointment",
+  label: "Pedir cancelamentos (sempre com confirmação)",
   description:
     "Pede a um membro que confirme o cancelamento de uma sessão (o id vem de read_agenda). Você nunca cancela sozinha: o membro decide num card, e a decisão chega numa próxima mensagem. Para mudar o horário, use reschedule_appointment.",
   input: z.object({
@@ -228,19 +266,14 @@ export const cancelAppointmentTool = defineTool({
     reason: z.string().max(200).nullable().describe("O motivo, se houver."),
   }),
   async run(input, { member, timeZone }) {
-    const appointment = await findAppointment(member, input.appointment_id)
-    if (!appointment) throw new ToolRefusal("Essa sessão não existe na agenda.")
-    if (appointment.status !== "scheduled") throw new ToolRefusal("Essa sessão não está mais agendada.")
-    const [customer, names] = await Promise.all([
-      findCustomer(member, appointment.customerId),
-      teamNames(member),
-    ])
+    const appointment = await scheduled(member, input.appointment_id)
+    const names = await teamNames(member)
     const reason = input.reason?.trim()
     const card: ApprovalCard = {
       type: "approval",
       title: "Cancelar a sessão?",
       rows: [
-        { label: "Cliente", value: customer?.name ?? "" },
+        { label: "Cliente", value: appointment.customer },
         { label: "Sessão", value: appointmentLabel(appointment.startsAt, timeZone) },
         { label: "Atende", value: names.get(appointment.memberId ?? "") ?? "Ninguém" },
         ...(reason ? [{ label: "Motivo", value: reason }] : []),
@@ -269,49 +302,5 @@ export const agendaTools = [
   cancelAppointmentTool,
 ]
 
-export type ToolCall = { id: string; name: string; input: unknown }
-export type Execution = { result: Anthropic.Beta.BetaToolResultBlockParam } & Omit<ToolOutput, "output">
-
-export function createToolRegistry(tools: Tool[]) {
-  const byName = new Map(tools.map((tool) => [tool.name, tool]))
-
-  const error = (call: ToolCall, content: string): Execution => ({
-    result: { type: "tool_result", tool_use_id: call.id, content, is_error: true },
-  })
-
-  return {
-    // In a fixed order, so the cached prefix stays the same between calls.
-    definitions: tools.map((tool): Anthropic.Beta.BetaTool => {
-      const schema: Record<string, unknown> = z.toJSONSchema(tool.input)
-      delete schema.$schema
-      return {
-        name: tool.name,
-        description: tool.description,
-        input_schema: schema as Anthropic.Beta.BetaTool.InputSchema,
-      }
-    }),
-
-    // The model's input is checked against the tool's schema before the tool sees it.
-    async execute(call: ToolCall, context: ToolContext): Promise<Execution> {
-      const tool = byName.get(call.name)
-      if (!tool) return error(call, `Não existe a ferramenta ${call.name}.`)
-      const input = tool.input.safeParse(call.input)
-      if (!input.success)
-        return error(call, `Entrada inválida para ${call.name}: ${z.prettifyError(input.error)}`)
-      try {
-        const { output, ...shown } = await tool.run(input.data, context)
-        return {
-          result: { type: "tool_result", tool_use_id: call.id, content: JSON.stringify(output) },
-          ...shown,
-        }
-      } catch (failure) {
-        if (failure instanceof ToolRefusal || failure instanceof AgendaError)
-          return error(call, failure.message)
-        console.error(`Tool ${call.name} failed`, failure)
-        return error(call, `A ferramenta ${call.name} falhou.`)
-      }
-    },
-  }
-}
-
-export type ToolRegistry = ReturnType<typeof createToolRegistry>
+// Every team agent can find customers and read the agenda: the other tools take ids from them.
+export const baseAgendaTools = [findCustomersTool.name, readAgendaTool.name]

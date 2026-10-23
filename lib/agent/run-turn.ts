@@ -1,13 +1,12 @@
 import type Anthropic from "@anthropic-ai/sdk"
-import type { AgendaAction, Card } from "./cards"
+import type { Card, CardAction } from "./cards"
 import type { Model } from "./model"
-import { systemPrompt } from "./prompt"
-import type { ToolContext, ToolRegistry } from "./tools"
+import type { ToolContext, ToolRegistry } from "./tool-registry"
 
 type Entry = Anthropic.Beta.BetaMessageParam
 
 // What the member sees from the agent this turn, in order.
-export type AgentReply = { text: string } | { card: Card; action?: AgendaAction }
+export type AgentReply = { text: string } | { card: Card; action?: CardAction }
 
 export type Turn = {
   // What to append to the transcript, after the entries passed in.
@@ -30,11 +29,14 @@ const textOf = (content: Anthropic.Beta.BetaContentBlockParam[]) =>
 // so every request resends the same prefix and reads it from the cache.
 export async function runTurn({
   model,
+  system,
   tools,
   transcript,
   context,
 }: {
   model: Model
+  // The agent's stable prompt.
+  system: string
   tools: ToolRegistry
   transcript: Entry[]
   context: ToolContext
@@ -44,7 +46,7 @@ export async function runTurn({
 
   for (let step = 0; step < maxSteps; step++) {
     const reply = await model({
-      system: systemPrompt,
+      system,
       tools: tools.definitions,
       messages: [...transcript, ...entries],
     })
