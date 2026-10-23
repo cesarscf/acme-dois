@@ -5,7 +5,7 @@ import { redirect } from "next/navigation"
 import { cache } from "react"
 import { auth } from "./auth"
 import { db } from "./db"
-import { member } from "./db/schema"
+import { member, organization } from "./db/schema"
 import type { Member } from "./member"
 
 export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }))
@@ -22,4 +22,12 @@ export const requireMember = cache(async (): Promise<Member> => {
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
   if (!found) redirect("/onboarding")
   return { id: found.id, organizationId, name: session.user.name }
+})
+
+export const getOrganizationName = cache(async (organizationId: string) => {
+  const [found] = await db
+    .select({ name: organization.name })
+    .from(organization)
+    .where(eq(organization.id, organizationId))
+  return found?.name ?? ""
 })
