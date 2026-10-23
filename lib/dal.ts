@@ -1,0 +1,25 @@
+import "server-only"
+import { and, eq } from "drizzle-orm"
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
+import { cache } from "react"
+import { auth } from "./auth"
+import { db } from "./db"
+import { member } from "./db/schema"
+import type { Member } from "./member"
+
+export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }))
+
+// The signed-in member of the active clinic; sends anyone else to sign in or to create a clinic.
+export const requireMember = cache(async (): Promise<Member> => {
+  const session = await getSession()
+  if (!session) redirect("/sign-in")
+  const organizationId = session.session.activeOrganizationId
+  if (!organizationId) redirect("/onboarding")
+  const [found] = await db
+    .select({ id: member.id })
+    .from(member)
+    .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
+  if (!found) redirect("/onboarding")
+  return { id: found.id, organizationId, name: session.user.name }
+})
