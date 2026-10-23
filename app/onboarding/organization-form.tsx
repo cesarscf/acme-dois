@@ -4,10 +4,10 @@ import { useActionState } from "react"
 import { Button } from "@/components/ui/button"
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
-import { createClinic } from "./actions"
+import { createOrganization } from "./actions"
 
-export function ClinicForm() {
-  const [state, formAction, pending] = useActionState(createClinic, undefined)
+export function OrganizationForm() {
+  const [state, formAction, pending] = useActionState(createOrganization, undefined)
   return (
     <form action={formAction}>
       <FieldGroup>

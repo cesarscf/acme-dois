@@ -1,12 +1,12 @@
 import { beforeEach, expect, test } from "bun:test"
-import { createClinic, resetDatabase } from "@/test/fixtures"
+import { createOrganization, resetDatabase } from "@/test/fixtures"
 import { createCustomer, findCustomer, listCustomers } from "./customers"
 
 beforeEach(resetDatabase)
 
-test("lists only the clinic's customers, matching the search", async () => {
-  const [ana] = await createClinic("Ana")
-  const [other] = await createClinic("Outra")
+test("lists only the organization's customers, matching the search", async () => {
+  const [ana] = await createOrganization("Ana")
+  const [other] = await createOrganization("Outra")
   await createCustomer(ana, { name: "Carla Souza" })
   await createCustomer(ana, { name: "Beatriz Lima" })
   await createCustomer(other, { name: "Carla Dias" })
@@ -16,9 +16,9 @@ test("lists only the clinic's customers, matching the search", async () => {
   expect(await listCustomers(ana, "100%")).toEqual([])
 })
 
-test("finds a customer only inside the clinic", async () => {
-  const [ana] = await createClinic("Ana")
-  const [other] = await createClinic("Outra")
+test("finds a customer only inside the organization", async () => {
+  const [ana] = await createOrganization("Ana")
+  const [other] = await createOrganization("Outra")
   const carla = await createCustomer(ana, { name: "Carla" })
   expect(await findCustomer(ana, carla.id)).toEqual(carla)
   expect(await findCustomer(other, carla.id)).toBeUndefined()

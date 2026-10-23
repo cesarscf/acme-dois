@@ -1,4 +1,4 @@
-// Days are aaaa-mm-dd and times HH:MM, both as the clinic reads them in its time zone.
+// Days are aaaa-mm-dd and times HH:MM, both as the organization reads them in its time zone.
 
 const partsIn = (instant: Date, timeZone: string) =>
   Object.fromEntries(
@@ -47,7 +47,7 @@ export function addDays(day: string, days: number) {
   return date.toISOString().slice(0, 10)
 }
 
-// The instants a clinic day starts and ends.
+// The instants an organization's day starts and ends.
 export const dayRange = (day: string, timeZone: string) => ({
   from: zonedInstant(day, "00:00", timeZone),
   to: zonedInstant(addDays(day, 1), "00:00", timeZone),

@@ -70,7 +70,7 @@ export const appointment = pgTable(
 
 export const messageAuthor = pgEnum("message_author", ["member", "agent"])
 
-// The direct conversation between one member and the clinic's agent, as the member sees it.
+// The direct conversation between one member and the organization's agent, as the member sees it.
 export const message = pgTable(
   "message",
   {

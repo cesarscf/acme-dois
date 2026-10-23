@@ -12,7 +12,7 @@ export const auth = betterAuth({
   databaseHooks: {
     session: {
       create: {
-        // A new session opens in the first clinic the account joined.
+        // A new session opens in the first organization the account joined.
         before: async (session) => {
           const [first] = await db
             .select({ organizationId: schema.member.organizationId })

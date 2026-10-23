@@ -10,7 +10,7 @@ import type { Member } from "./member"
 
 export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }))
 
-// The signed-in member of the active clinic; sends anyone else to sign in or to create a clinic.
+// The signed-in member of the active organization; sends anyone else to sign in or to create an organization.
 export const requireMember = cache(async (): Promise<Member> => {
   const session = await getSession()
   if (!session) redirect("/sign-in")

@@ -10,12 +10,12 @@ export const defaultAppointmentMinutes = 50
 
 export type Appointment = typeof appointment.$inferSelect
 
-const inClinic = (member: Member, id: string) =>
+const inOrganization = (member: Member, id: string) =>
   and(eq(appointment.id, id), eq(appointment.organizationId, member.organizationId))
 
 const attending = alias(memberTable, "attending")
 
-// A clinic's appointments in [from, to), with the customer's and the attending member's names.
+// An organization's appointments in [from, to), with the customer's and the attending member's names.
 export async function listAppointments(member: Member, range: { from: Date; to: Date }) {
   return db
     .select({
@@ -44,11 +44,11 @@ export async function listAppointments(member: Member, range: { from: Date; to: 
 }
 
 export async function findAppointment(member: Member, id: string) {
-  const [found] = await db.select().from(appointment).where(inClinic(member, id))
+  const [found] = await db.select().from(appointment).where(inOrganization(member, id))
   return found
 }
 
-async function isClinicMember(organizationId: string, memberId: string) {
+async function isOrganizationMember(organizationId: string, memberId: string) {
   const [found] = await db
     .select({ id: memberTable.id })
     .from(memberTable)
@@ -72,7 +72,7 @@ export async function createAppointment(member: Member, input: NewAppointment) {
     .from(customer)
     .where(and(eq(customer.id, input.customerId), eq(customer.organizationId, member.organizationId)))
   if (!owner) throw new AgendaError("Essa cliente não é da clínica.")
-  if (input.memberId && !(await isClinicMember(member.organizationId, input.memberId)))
+  if (input.memberId && !(await isOrganizationMember(member.organizationId, input.memberId)))
     throw new AgendaError("Quem atende precisa ser da equipe.")
   const [created] = await db
     .insert(appointment)
@@ -88,7 +88,7 @@ export async function createAppointment(member: Member, input: NewAppointment) {
   return created
 }
 
-// A scheduled appointment of the clinic, or an AgendaError saying why not.
+// A scheduled appointment of the organization, or an AgendaError saying why not.
 async function scheduled(member: Member, id: string) {
   const found = await findAppointment(member, id)
   if (!found) throw new AgendaError("Essa sessão não existe na agenda.")
@@ -105,13 +105,13 @@ export async function rescheduleAppointment(
 ) {
   const from = await scheduled(member, id)
   const memberId = to.memberId === undefined ? from.memberId : to.memberId
-  if (memberId && !(await isClinicMember(member.organizationId, memberId)))
+  if (memberId && !(await isOrganizationMember(member.organizationId, memberId)))
     throw new AgendaError("Quem atende precisa ser da equipe.")
   return db.transaction(async (tx) => {
     const [cancelled] = await tx
       .update(appointment)
       .set({ status: "cancelled" })
-      .where(and(inClinic(member, id), eq(appointment.updatedAt, from.updatedAt)))
+      .where(and(inOrganization(member, id), eq(appointment.updatedAt, from.updatedAt)))
       .returning()
     if (!cancelled) throw new AgendaError("Essa sessão mudou enquanto eu remarcava.")
     const [rebooked] = await tx
@@ -133,12 +133,12 @@ export async function rescheduleAppointment(
 export async function assignAppointment(member: Member, id: string, memberId: string) {
   const from = await scheduled(member, id)
   if (from.memberId === memberId) throw new AgendaError("Essa pessoa já atende essa sessão.")
-  if (!(await isClinicMember(member.organizationId, memberId)))
+  if (!(await isOrganizationMember(member.organizationId, memberId)))
     throw new AgendaError("Quem atende precisa ser da equipe.")
   const [updated] = await db
     .update(appointment)
     .set({ memberId })
-    .where(and(inClinic(member, id), eq(appointment.updatedAt, from.updatedAt)))
+    .where(and(inOrganization(member, id), eq(appointment.updatedAt, from.updatedAt)))
     .returning()
   if (!updated) throw new AgendaError("Essa sessão mudou enquanto eu trocava quem atende.")
   return { from, updated }
@@ -152,7 +152,7 @@ export async function cancelAppointment(member: Member, id: string, unchangedSin
     .set({ status: "cancelled" })
     .where(
       and(
-        inClinic(member, id),
+        inOrganization(member, id),
         eq(appointment.status, "scheduled"),
         unchangedSince ? eq(appointment.updatedAt, unchangedSince) : undefined,
       ),
@@ -169,7 +169,7 @@ export async function applyRestores(member: Member, restores: Restore[]) {
         const [restored] = await tx
           .update(appointment)
           .set(restore)
-          .where(and(inClinic(member, id), eq(appointment.updatedAt, new Date(updatedAt))))
+          .where(and(inOrganization(member, id), eq(appointment.updatedAt, new Date(updatedAt))))
           .returning({ id: appointment.id })
         if (!restored) throw new StaleRestore()
       }

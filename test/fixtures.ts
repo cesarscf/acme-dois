@@ -9,8 +9,8 @@ export async function resetDatabase() {
   )
 }
 
-// A clinic with one member per name, each with their own account.
-export async function createClinic(...names: string[]): Promise<Member[]> {
+// An organization with one member per name, each with their own account.
+export async function createOrganization(...names: string[]): Promise<Member[]> {
   const organizationId = crypto.randomUUID()
   const now = new Date()
   await db.insert(organization).values({ id: organizationId, name: "Clínica", slug: organizationId, createdAt: now })

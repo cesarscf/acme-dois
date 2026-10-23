@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { createClinic, resetDatabase } from "@/test/fixtures"
+import { createOrganization, resetDatabase } from "@/test/fixtures"
 import {
   AgendaError,
   applyRestores,
@@ -15,13 +15,13 @@ import { createCustomer } from "./customers"
 
 const at = (iso: string) => new Date(iso)
 
-let ana: Awaited<ReturnType<typeof createClinic>>[number]
+let ana: Awaited<ReturnType<typeof createOrganization>>[number]
 let bia: typeof ana
 let customerId: string
 
 beforeEach(async () => {
   await resetDatabase()
-  ;[ana, bia] = await createClinic("Ana", "Bia")
+  ;[ana, bia] = await createOrganization("Ana", "Bia")
   customerId = (await createCustomer(ana, { name: "Carla" })).id
 })
 
@@ -35,8 +35,8 @@ describe("createAppointment", () => {
     expect(created.status).toBe("scheduled")
   })
 
-  test("refuses a customer from another clinic", async () => {
-    const [other] = await createClinic("Outra")
+  test("refuses a customer from another organization", async () => {
+    const [other] = await createOrganization("Outra")
     const stranger = await createCustomer(other, { name: "Dora" })
     await expect(
       createAppointment(ana, { customerId: stranger.id, memberId: null, startsAt: at("2026-10-23T13:00:00Z") }),
@@ -44,18 +44,18 @@ describe("createAppointment", () => {
   })
 
   test("refuses someone outside the team as who attends", async () => {
-    const [other] = await createClinic("Outra")
+    const [other] = await createOrganization("Outra")
     await expect(
       createAppointment(ana, { customerId, memberId: other.id, startsAt: at("2026-10-23T13:00:00Z") }),
     ).rejects.toThrow("Quem atende precisa ser da equipe.")
   })
 })
 
-test("listAppointments returns one clinic's day, in order, with names", async () => {
+test("listAppointments returns one organization's day, in order, with names", async () => {
   await book("2026-10-23T15:00:00Z")
   await book("2026-10-23T13:00:00Z")
   await book("2026-10-24T13:00:00Z")
-  const [other] = await createClinic("Outra")
+  const [other] = await createOrganization("Outra")
   const theirs = await createCustomer(other, { name: "Dora" })
   await createAppointment(other, { customerId: theirs.id, memberId: null, startsAt: at("2026-10-23T14:00:00Z") })
 
@@ -84,8 +84,8 @@ describe("rescheduleAppointment", () => {
     )
   })
 
-  test("can't touch another clinic's appointment", async () => {
-    const [other] = await createClinic("Outra")
+  test("can't touch another organization's appointment", async () => {
+    const [other] = await createOrganization("Outra")
     const original = await book()
     await expect(rescheduleAppointment(other, original.id, { startsAt: at("2026-10-24T13:00:00Z") })).rejects.toThrow(
       "Essa sessão não existe na agenda.",
@@ -104,7 +104,7 @@ describe("cancelAppointment", () => {
   test("is stale when the appointment changed since the version given", async () => {
     const original = await book()
     await assignAppointment(ana, original.id, bia.id)
-    expect(await cancelAppointment(ana, original.id, original.updatedAt)).toBe("stale")
+    expect<unknown>(await cancelAppointment(ana, original.id, original.updatedAt)).toBe("stale")
     expect((await findAppointment(ana, original.id))?.status).toBe("scheduled")
   })
 

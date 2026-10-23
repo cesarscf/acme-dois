@@ -4,7 +4,7 @@ import { addDays, appointmentLabel, dayIn, dayRange, timeIn, zonedInstant } from
 const saoPaulo = "America/Sao_Paulo"
 
 describe("zonedInstant", () => {
-  test("reads the wall clock of the clinic's zone", () => {
+  test("reads the wall clock of the organization's zone", () => {
     expect(zonedInstant("2026-10-23", "10:00", saoPaulo).toISOString()).toBe(
       "2026-10-23T13:00:00.000Z",
     )
@@ -36,7 +36,7 @@ test("addDays crosses months and years", () => {
   expect(addDays("2026-03-01", -1)).toBe("2026-02-28")
 })
 
-test("dayRange spans the clinic's whole day", () => {
+test("dayRange spans the organization's whole day", () => {
   const { from, to } = dayRange("2026-10-23", saoPaulo)
   expect(from.toISOString()).toBe("2026-10-23T03:00:00.000Z")
   expect(to.toISOString()).toBe("2026-10-24T03:00:00.000Z")

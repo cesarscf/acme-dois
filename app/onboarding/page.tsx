@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getSession } from "@/lib/dal"
-import { ClinicForm } from "./clinic-form"
+import { OrganizationForm } from "./organization-form"
 
 export const metadata = { title: "Sua clínica" }
 
@@ -17,7 +17,7 @@ export default async function OnboardingPage() {
           <CardDescription>Crie sua clínica para começar a trabalhar com a Lia.</CardDescription>
         </CardHeader>
         <CardContent>
-          <ClinicForm />
+          <OrganizationForm />
         </CardContent>
       </Card>
     </main>
