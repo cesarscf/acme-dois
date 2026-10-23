@@ -282,7 +282,8 @@ export function createToolRegistry(tools: Tool[]) {
   return {
     // In a fixed order, so the cached prefix stays the same between calls.
     definitions: tools.map((tool): Anthropic.Beta.BetaTool => {
-      const { $schema: _, ...schema } = z.toJSONSchema(tool.input)
+      const schema: Record<string, unknown> = z.toJSONSchema(tool.input)
+      delete schema.$schema
       return {
         name: tool.name,
         description: tool.description,
