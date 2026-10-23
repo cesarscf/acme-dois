@@ -27,7 +27,7 @@ CREATE TABLE "appointment" (
 	"status" "appointment_status" DEFAULT 'scheduled' NOT NULL,
 	"rescheduled_from_id" uuid,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	"updated_at" timestamp with time zone NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "customer" (

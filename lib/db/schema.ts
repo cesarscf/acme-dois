@@ -58,10 +58,11 @@ export const appointment = pgTable(
     // Rescheduling cancels the appointment and books a new one that points back to it.
     rescheduledFromId: uuid("rescheduled_from_id").references((): AnyPgColumn => appointment.id),
     createdAt,
-    // Undo and Approvals apply only while the appointment is still at the version they saw.
+    // Undo and Approvals apply only while the appointment is still at the version they saw. Set
+    // here rather than by now(), whose microseconds a JS Date can't hold to compare against.
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
-      .defaultNow()
+      .$defaultFn(() => new Date())
       .$onUpdate(() => new Date()),
   },
   (table) => [index("appointment_organization_starts_idx").on(table.organizationId, table.startsAt)],
