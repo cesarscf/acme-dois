@@ -8,13 +8,9 @@ import { Textarea } from "@/components/ui/textarea"
 import type { ChatMessage } from "@/lib/chat/conversation"
 import { cn } from "@/lib/utils"
 
-const examples = [
-  "Quem eu atendo amanhã?",
-  "Marca a Carla na sexta às 10h",
-  "Remarca a sessão da Carla para segunda às 9h",
-]
+type Props = { agentId: string; agentName: string; messages: ChatMessage[] }
 
-export function Chat({ messages, agentName }: { messages: ChatMessage[]; agentName: string }) {
+export function Chat({ agentId, agentName, messages }: Props) {
   const [shown, addSent] = useOptimistic(messages, (state, text: string): ChatMessage[] => [
     ...state,
     { id: `sending-${state.length}`, author: "member", text, card: null, createdAt: new Date() },
@@ -25,7 +21,7 @@ export function Chat({ messages, agentName }: { messages: ChatMessage[]; agentNa
     const text = String(formData.get("text") ?? "").trim()
     if (!text) return
     addSent(text)
-    await sendMessageAction(formData)
+    await sendMessageAction(agentId, formData)
   }
 
   return (
@@ -35,7 +31,7 @@ export function Chat({ messages, agentName }: { messages: ChatMessage[]; agentNa
         <ol className="flex flex-col gap-3 p-4">
           {shown.length === 0 ? (
             <li className="text-sm text-muted-foreground">
-              Peça para a {agentName} cuidar da agenda. Por exemplo: “{examples[1]}”.
+              Peça para {agentName} algo do trabalho dele, como “Quem eu atendo amanhã?”.
             </li>
           ) : null}
           {shown.map((message) => (
@@ -44,7 +40,7 @@ export function Chat({ messages, agentName }: { messages: ChatMessage[]; agentNa
               className={cn("flex", message.author === "member" ? "justify-end" : "justify-start")}
             >
               {message.card ? (
-                <MessageCard messageId={message.id} card={message.card} />
+                <MessageCard agentId={agentId} messageId={message.id} card={message.card} />
               ) : (
                 <p
                   className={cn(

@@ -5,18 +5,19 @@ import { z } from "zod"
 import { createAnthropicModel, type Model } from "@/lib/agent/model"
 import { actOnCard, sendMessage } from "@/lib/chat/conversation"
 import { requireMember } from "@/lib/dal"
+import { findAgent } from "@/lib/organization/agents"
 
 // One client for the server's lifetime; it holds no request state.
 let model: Model | undefined
 
 const messageText = z.string().trim().min(1).max(4000)
 
-export async function sendMessageAction(formData: FormData) {
+export async function sendMessageAction(agentId: string, formData: FormData) {
   const member = await requireMember()
-  const text = messageText.safeParse(formData.get("text"))
-  if (!text.success) return
-  await sendMessage(member, text.data, { model: (model ??= createAnthropicModel()) })
-  revalidatePath("/")
+  const [agent, text] = [await findAgent(member, agentId), messageText.safeParse(formData.get("text"))]
+  if (!agent || !text.success) return
+  await sendMessage(member, agent, text.data, { model: (model ??= createAnthropicModel()) })
+  revalidatePath(`/agents/${agent.id}`)
 }
 
 const cardChoice = z.object({
@@ -24,10 +25,12 @@ const cardChoice = z.object({
   choice: z.enum(["undo", "accept", "decline"]),
 })
 
-export async function actOnCardAction(messageId: string, choice: string) {
+export async function actOnCardAction(agentId: string, messageId: string, choice: string) {
   const member = await requireMember()
+  const agent = await findAgent(member, agentId)
   const input = cardChoice.safeParse({ messageId, choice })
-  if (!input.success) return
-  await actOnCard(member, input.data.messageId, input.data.choice)
-  revalidatePath("/")
+  if (!agent || !input.success) return
+  await actOnCard(member, agent, input.data.messageId, input.data.choice)
+  // Confirming a team proposal adds agents to the list beside every conversation.
+  revalidatePath("/", "layout")
 }

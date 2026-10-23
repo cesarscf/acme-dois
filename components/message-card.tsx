@@ -21,19 +21,23 @@ const statusLabel: Record<CardData["status"], string> = {
   pending: "Aguardando você",
   accepted: "Confirmado",
   declined: "Recusado",
-  stale: "A agenda mudou; nada foi feito",
+  stale: "Nada foi feito",
 }
 
-export function MessageCard({ messageId, card }: { messageId: string; card: CardData }) {
+type Props = { agentId: string; messageId: string; card: CardData }
+
+export function MessageCard({ agentId, messageId, card }: Props) {
   const [pending, startTransition] = useTransition()
   const act = (choice: "undo" | "accept" | "decline") =>
-    startTransition(() => actOnCardAction(messageId, choice))
+    startTransition(() => actOnCardAction(agentId, messageId, choice))
 
   return (
     <Card size="sm" className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>{card.title}</CardTitle>
-        {card.type === "receipt" ? <CardDescription>{card.detail}</CardDescription> : null}
+        {card.type === "receipt" ? (
+          <CardDescription className="whitespace-pre-wrap">{card.detail}</CardDescription>
+        ) : null}
         <CardAction>
           <Badge variant={card.status === "stale" ? "destructive" : "secondary"}>
             {statusLabel[card.status]}
@@ -52,7 +56,7 @@ export function MessageCard({ messageId, card }: { messageId: string; card: Card
           </dl>
         </CardContent>
       ) : null}
-      {card.type === "receipt" && card.status === "applied" ? (
+      {card.type === "receipt" && card.status === "applied" && card.undoable ? (
         <CardFooter>
           <Button variant="outline" size="sm" disabled={pending} onClick={() => act("undo")}>
             Desfazer
