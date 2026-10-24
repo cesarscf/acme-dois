@@ -15,8 +15,8 @@ export type ReceiptCard = {
 export type ApprovalCard = {
   type: "approval"
   title: string
-  // A row about an agent shows its avatar.
-  rows: { label: string; value: string; look?: AgentLook }[]
+  // A row about an agent shows as its charter: avatar, name, role and what it does.
+  rows: { label: string; value: string; look?: AgentLook; details?: { label: string; value: string }[] }[]
   status: "pending" | "accepted" | "declined" | "stale"
 }
 

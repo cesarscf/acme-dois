@@ -144,8 +144,13 @@ export const proposeTeamTool = defineTool({
         const asks = agent.tools.filter((tool) => confirmable.has(tool) && !agent.actsAlone.includes(tool))
         return {
           label: agent.name,
-          value: `${agent.role}. Faz sozinho: ${labels(agent.actsAlone)}. Pergunta antes: ${labels(asks)}.`,
+          value: agent.role,
           look: { shape: agent.shape, color: agent.color },
+          details: [
+            { label: "O que faz", value: agent.instructions },
+            { label: "Sozinho", value: labels(agent.actsAlone) },
+            { label: "Pergunta antes", value: labels(asks) },
+          ],
         }
       }),
       status: "pending",

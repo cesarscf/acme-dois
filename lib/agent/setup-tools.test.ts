@@ -62,8 +62,13 @@ describe("propose_team", () => {
       rows: [
         {
           label: "Lia",
-          value: "Secretária da agenda. Faz sozinho: Marcar sessões. Pergunta antes: Remarcar sessões.",
+          value: "Secretária da agenda",
           look: { shape: "square", color: "#2f80ff" },
+          details: [
+            { label: "O que faz", value: "Você marca e remarca as sessões." },
+            { label: "Sozinho", value: "Marcar sessões" },
+            { label: "Pergunta antes", value: "Remarcar sessões" },
+          ],
         },
       ],
       status: "pending",
