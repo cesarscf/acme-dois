@@ -50,10 +50,11 @@ describe("runTurn", () => {
     )
     const turn = await runTurn({ model, system, tools, transcript, context })
 
+    // What the agent wrote comes first, then the cards, in the order its tools showed them.
     expect(turn.replies).toEqual([
+      { text: "Feito." },
       { card: { type: "receipt", title: "a", detail: "", status: "applied", undoable: true }, action: { kind: "undo", restores: [] } },
       { card: { type: "receipt", title: "b", detail: "", status: "applied", undoable: true }, action: { kind: "undo", restores: [] } },
-      { text: "Feito." },
     ])
     const results = requests[1].messages.at(-1)
     expect(results?.role).toBe("user")
@@ -92,6 +93,7 @@ describe("runTurn", () => {
     )
     const turn = await runTurn({ model, system, tools, transcript, context })
     expect(requests).toHaveLength(8)
-    expect(turn.replies.at(-1)).toEqual({ text: unanswered })
+    expect(turn.replies[0]).toEqual({ text: unanswered })
+    expect(turn.replies.slice(1).every((reply) => "card" in reply)).toBe(true)
   })
 })

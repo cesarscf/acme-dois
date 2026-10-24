@@ -5,7 +5,8 @@ import type { ToolContext, ToolRegistry } from "./tool-registry"
 
 type Entry = Anthropic.Beta.BetaMessageParam
 
-// What the member sees from the agent this turn, in order.
+// What the member sees from the agent this turn: what it wrote, then the cards its tools showed, as
+// in Salte ("Fechado. Confere se eu entendi direito:" and the card below it).
 export type AgentReply = { text: string } | { card: Card; action?: CardAction }
 
 export type Turn = {
@@ -42,7 +43,9 @@ export async function runTurn({
   context: ToolContext
 }): Promise<Turn> {
   const entries: Entry[] = []
-  const replies: AgentReply[] = []
+  const texts: AgentReply[] = []
+  const cards: AgentReply[] = []
+  const replies = () => [...texts, ...cards]
 
   for (let step = 0; step < maxSteps; step++) {
     const reply = await model({
@@ -52,11 +55,11 @@ export async function runTurn({
     })
     entries.push({ role: "assistant", content: reply.content })
     const text = textOf(reply.content)
-    if (text) replies.push({ text })
+    if (text) texts.push({ text })
 
     if (reply.stopReason !== "tool_use") {
-      if (reply.stopReason !== "end_turn" || !text) replies.push({ text: unanswered })
-      return { entries, replies }
+      if (reply.stopReason !== "end_turn" || !text) texts.push({ text: unanswered })
+      return { entries, replies: replies() }
     }
 
     const calls = reply.content.filter((block) => block.type === "tool_use")
@@ -65,11 +68,11 @@ export async function runTurn({
     for (const call of calls) {
       const { result, card, action } = await tools.execute(call, context)
       results.push(result)
-      if (card) replies.push({ card, action })
+      if (card) cards.push({ card, action })
     }
     entries.push({ role: "user", content: results })
   }
 
-  replies.push({ text: unanswered })
-  return { entries, replies }
+  texts.push({ text: unanswered })
+  return { entries, replies: replies() }
 }

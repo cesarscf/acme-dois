@@ -300,7 +300,11 @@ describe("actOnCard", () => {
     const approval = (await listMessages(ana, lia)).find((row) => row.card)!
     expect(approval.card).toMatchObject({ title: "Marcar a sessão?", status: "pending" })
 
-    expect(await actOnCard(ana, lia, approval.id, "accept", { now })).toMatchObject({ status: "accepted" })
+    // Confirmed a few minutes later, as it would be.
+    const confirmedAt = new Date(now.getTime() + 5 * 60_000)
+    expect(await actOnCard(ana, lia, approval.id, "accept", { now: confirmedAt })).toMatchObject({
+      status: "accepted",
+    })
     const cards = (await listMessages(ana, lia)).flatMap((row) => (row.card ? [row] : []))
     expect(cards.map((row) => [row.card && "title" in row.card && row.card.title, row.card?.status])).toEqual([
       ["Marcar a sessão?", "accepted"],
