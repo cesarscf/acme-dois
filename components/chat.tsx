@@ -1,80 +1,102 @@
 "use client"
 
-import { useOptimistic } from "react"
+import { ArrowDownIcon, LoaderCircleIcon } from "lucide-react"
+import { useOptimistic, useState, useTransition } from "react"
 import { sendMessageAction } from "@/app/actions"
-import { MessageCard } from "@/components/message-card"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
-import type { ChatMessage } from "@/lib/chat/conversation"
-import { cn } from "@/lib/utils"
+import { ChatMessage } from "@/components/chat-message"
+import { PromptForm } from "@/components/prompt-form"
+import { Suggestions } from "@/components/suggestions"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { Message, MessageContent } from "@/components/ui/message"
+import {
+  MessageScroller,
+  MessageScrollerButton,
+  MessageScrollerContent,
+  MessageScrollerItem,
+  MessageScrollerProvider,
+  MessageScrollerViewport,
+} from "@/components/ui/message-scroller"
+import { Trace, TraceIcon, TraceLine, TraceTitle } from "@/components/ui/trace"
+import type { ChatMessage as ChatMessageData } from "@/lib/chat/conversation"
 
-type Props = { agentId: string; agentName: string; messages: ChatMessage[] }
+type Props = {
+  agentId: string
+  agentName: string
+  messages: ChatMessageData[]
+  suggestions: string[]
+}
 
-export function Chat({ agentId, agentName, messages }: Props) {
-  const [shown, addSent] = useOptimistic(messages, (state, text: string): ChatMessage[] => [
+export function Chat({ agentId, agentName, messages, suggestions }: Props) {
+  const [shown, addSent] = useOptimistic(messages, (state, text: string): ChatMessageData[] => [
     ...state,
     { id: `sending-${state.length}`, author: "member", text, card: null, createdAt: new Date() },
   ])
-  const waiting = shown.length > messages.length
+  const [waiting, startTransition] = useTransition()
+  const [failed, setFailed] = useState(false)
+  const started = shown.some((message) => message.author === "member")
 
-  async function send(formData: FormData) {
-    const text = String(formData.get("text") ?? "").trim()
-    if (!text) return
-    addSent(text)
-    await sendMessageAction(agentId, formData)
+  function send(text: string) {
+    setFailed(false)
+    startTransition(async () => {
+      addSent(text)
+      try {
+        await sendMessageAction(agentId, text)
+      } catch {
+        setFailed(true)
+      }
+    })
   }
 
   return (
-    <>
-      {/* Reversed, so the list starts scrolled to the latest message. */}
-      <div className="flex flex-1 flex-col-reverse overflow-y-auto">
-        <ol className="flex flex-col gap-3 p-4">
-          {shown.map((message) => (
-            <li
-              key={message.id}
-              className={cn("flex", message.author === "member" ? "justify-end" : "justify-start")}
-            >
-              {message.card ? (
-                <MessageCard agentId={agentId} messageId={message.id} card={message.card} />
-              ) : (
-                <p
-                  className={cn(
-                    "max-w-[85%] rounded-2xl px-3 py-2 text-sm whitespace-pre-wrap",
-                    message.author === "member" ? "bg-primary text-primary-foreground" : "bg-muted",
-                  )}
+    <div className="flex min-h-0 w-full flex-1 flex-col">
+      <MessageScrollerProvider>
+        <MessageScroller className="flex-1">
+          <MessageScrollerViewport>
+            <MessageScrollerContent className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-6 py-6">
+              {shown.map((message) => (
+                <MessageScrollerItem
+                  key={message.id}
+                  messageId={message.id}
+                  scrollAnchor={message.author === "member"}
                 >
-                  {message.text}
-                </p>
-              )}
-            </li>
-          ))}
-          {waiting ? (
-            <li className="text-sm text-muted-foreground" aria-live="polite">
-              {agentName} está escrevendo…
-            </li>
-          ) : null}
-        </ol>
+                  <ChatMessage agentId={agentId} message={message} />
+                </MessageScrollerItem>
+              ))}
+              {waiting ? (
+                <MessageScrollerItem messageId="thinking">
+                  <Message>
+                    <MessageContent>
+                      <Trace>
+                        <TraceLine status="running">
+                          <TraceIcon>
+                            <LoaderCircleIcon className="animate-spin" />
+                          </TraceIcon>
+                          <TraceTitle>{agentName} está pensando</TraceTitle>
+                        </TraceLine>
+                      </Trace>
+                    </MessageContent>
+                  </Message>
+                </MessageScrollerItem>
+              ) : null}
+            </MessageScrollerContent>
+          </MessageScrollerViewport>
+          <MessageScrollerButton>
+            <ArrowDownIcon />
+            <span className="sr-only">Ir para a última mensagem</span>
+          </MessageScrollerButton>
+        </MessageScroller>
+      </MessageScrollerProvider>
+
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-3 px-6 pb-6">
+        {failed ? (
+          <Alert variant="destructive">
+            <AlertTitle>A mensagem não foi enviada</AlertTitle>
+            <AlertDescription>Confira a sua conexão e tente de novo.</AlertDescription>
+          </Alert>
+        ) : null}
+        {!started && !waiting ? <Suggestions suggestions={suggestions} onSelect={send} /> : null}
+        <PromptForm placeholder={`Mensagem para ${agentName}…`} isBusy={waiting} onSubmit={send} />
       </div>
-      <form action={send} className="flex items-end gap-2 border-t p-4">
-        <Textarea
-          name="text"
-          aria-label={`Mensagem para ${agentName}`}
-          placeholder={`Escreva para ${agentName}…`}
-          rows={1}
-          maxLength={4000}
-          required
-          className="max-h-40 min-h-9 resize-none"
-          onKeyDown={(event) => {
-            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-              event.preventDefault()
-              event.currentTarget.form?.requestSubmit()
-            }
-          }}
-        />
-        <Button type="submit" disabled={waiting}>
-          Enviar
-        </Button>
-      </form>
-    </>
+    </div>
   )
 }

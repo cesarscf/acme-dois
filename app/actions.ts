@@ -13,9 +13,9 @@ let model: Model | undefined
 
 const messageText = z.string().trim().min(1).max(4000)
 
-export async function sendMessageAction(agentId: string, formData: FormData) {
+export async function sendMessageAction(agentId: string, input: string) {
   const member = await requireMember()
-  const [agent, text] = [await findAgent(member, agentId), messageText.safeParse(formData.get("text"))]
+  const [agent, text] = [await findAgent(member, agentId), messageText.safeParse(input)]
   if (!agent || !text.success) return
   await sendMessage(member, agent, text.data, { model: (model ??= createAnthropicModel()) })
   revalidatePath(`/agents/${agent.id}`)
