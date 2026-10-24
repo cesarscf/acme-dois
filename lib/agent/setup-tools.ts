@@ -3,6 +3,7 @@ import { listAgents, findAgent } from "../organization/agents"
 import { findOrganizationProfile, saveOrganizationProfile } from "../organization/profile"
 import { agendaTools, baseAgendaTools } from "./agenda-tools"
 import type { ApprovalCard, ProposedAgent } from "./cards"
+import { type AgentLook, nextLook } from "./look"
 import { defineTool, ToolRefusal } from "./tool-registry"
 
 // The setup agent's tools: it learns how the organization works and proposes the team of agenda
@@ -70,7 +71,15 @@ export const readOrganizationTool = defineTool({
         profile: profile ?? null,
         agents: team.flatMap((agent) =>
           agent
-            ? [{ name: agent.name, role: agent.role, tools: agent.tools, acts_alone: agent.actsAlone }]
+            ? [
+                {
+                  id: agent.id,
+                  name: agent.name,
+                  role: agent.role,
+                  tools: agent.tools,
+                  acts_alone: agent.actsAlone,
+                },
+              ]
             : [],
         ),
       },
@@ -103,7 +112,9 @@ export const proposeTeamTool = defineTool({
     .join(", ")}. Podem agir sozinhos só em: ${[...confirmable].join(", ")}.`,
   input: z.object({ agents: z.array(proposedAgent).min(1).max(5) }),
   async run({ agents }, { member }) {
-    const taken = new Set((await listAgents(member)).map((agent) => agent.name.toLowerCase()))
+    const team = await listAgents(member)
+    const taken = new Set(team.map((agent) => agent.name.toLowerCase()))
+    const looks: AgentLook[] = team.map(({ shape, color }) => ({ shape, color }))
     const proposed: ProposedAgent[] = agents.map((agent) => {
       if (taken.has(agent.name.toLowerCase()))
         throw new ToolRefusal(`Já existe um agente chamado ${agent.name}.`)
@@ -114,7 +125,17 @@ export const proposeTeamTool = defineTool({
       const missing = agent.acts_alone.filter((tool) => !tools.includes(tool))
       if (missing.length)
         throw new ToolRefusal(`${agent.name} age sozinho em ${missing.join(", ")} sem ter a ferramenta.`)
-      return { name: agent.name, role: agent.role, instructions: agent.instructions, tools, actsAlone: agent.acts_alone }
+      // The member picks the look later, in a card; until then each gets one the team isn't using.
+      const look = nextLook(looks)
+      looks.push(look)
+      return {
+        name: agent.name,
+        role: agent.role,
+        instructions: agent.instructions,
+        tools,
+        actsAlone: agent.acts_alone,
+        ...look,
+      }
     })
     const card: ApprovalCard = {
       type: "approval",
@@ -124,6 +145,7 @@ export const proposeTeamTool = defineTool({
         return {
           label: agent.name,
           value: `${agent.role}. Faz sozinho: ${labels(agent.actsAlone)}. Pergunta antes: ${labels(asks)}.`,
+          look: { shape: agent.shape, color: agent.color },
         }
       }),
       status: "pending",
@@ -136,4 +158,31 @@ export const proposeTeamTool = defineTool({
   },
 })
 
-export const setupTools = [saveOrganizationProfileTool, readOrganizationTool, proposeTeamTool]
+export const chooseAgentLookTool = defineTool({
+  name: "choose_agent_look",
+  label: "Escolher a aparência de um agente",
+  description:
+    "Mostra ao membro um card para escolher a forma e a cor do avatar de um agente da equipe (o id vem de read_organization). Ele escolhe no card, e a escolha chega numa próxima mensagem.",
+  input: z.object({ agent_id: z.uuid() }),
+  async run({ agent_id }, { member }) {
+    const agent = await findAgent(member, agent_id)
+    if (!agent || agent.kind !== "team") throw new ToolRefusal("Esse agente não é da equipe.")
+    return {
+      output: "Mostrei o card. Não diga qual foi a escolha: ela chega depois.",
+      card: {
+        type: "look",
+        agentName: agent.name,
+        look: { shape: agent.shape, color: agent.color },
+        status: "pending",
+      },
+      action: { kind: "look", agentId: agent.id },
+    }
+  },
+})
+
+export const setupTools = [
+  saveOrganizationProfileTool,
+  readOrganizationTool,
+  proposeTeamTool,
+  chooseAgentLookTool,
+]

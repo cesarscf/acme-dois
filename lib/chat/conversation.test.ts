@@ -36,6 +36,8 @@ async function teamAgent(overrides: { tools?: string[]; actsAlone?: string[] } =
       instructions: "Você marca as sessões que a equipe pedir.",
       tools: overrides.tools ?? ["find_customers", "read_agenda", "create_appointment", "cancel_appointment"],
       actsAlone: overrides.actsAlone ?? ["create_appointment"],
+      shape: "round",
+      color: "#2f80ff",
     },
   ])
   return (await findAgent(ana, created.id))!
@@ -70,6 +72,7 @@ describe("the setup agent", () => {
       "save_organization_profile",
       "read_organization",
       "propose_team",
+      "choose_agent_look",
     ])
     expect((await shown(ana, setup)).map((row) => row.author)).toEqual(["agent", "member", "agent"])
   })
@@ -88,7 +91,34 @@ describe("the setup agent", () => {
     expect((await listAgents(ana)).map((agent) => agent.name)).toEqual(["Acme Bot"])
 
     expect(await actOnCard(ana, setup, card.id, "accept")).toMatchObject({ status: "accepted" })
-    expect((await listAgents(ana)).map((agent) => agent.name)).toEqual(["Acme Bot", "Lia"])
+    const team = await listAgents(ana)
+    expect(team.map((agent) => agent.name)).toEqual(["Acme Bot", "Lia"])
+
+    // Told the new agents' ids, so it can show their look cards next.
+    const { model: next, requests } = scriptedModel(says("Agora a aparência."))
+    await sendMessage(ana, setup, "Feito", { model: next, now })
+    expect(requests[0].messages.at(-3)?.content).toBe(
+      `[Aviso do Acme, não escrito pelo membro] Ana confirmou "Criar este agente?". Agentes criados: Lia (id ${team[1].id}).`,
+    )
+  })
+
+  test("sets an agent's look from the look card, once", async () => {
+    const lia = await teamAgent()
+    const { model } = scriptedModel(uses({ name: "choose_agent_look", input: { agent_id: lia.id } }), says("Escolhe aí."))
+    await sendMessage(ana, setup, "Quero mudar a cara da Lia", { model, now })
+    const card = (await listMessages(ana, setup)).find((row) => row.card)!
+    expect(card.card).toMatchObject({ type: "look", status: "pending" })
+
+    const look = { shape: "blob", color: "#ff5cae" } as const
+    expect(await actOnCard(ana, setup, card.id, "choose", { look })).toEqual({
+      type: "look",
+      agentName: "Lia",
+      look,
+      status: "chosen",
+    })
+    expect(await findAgent(ana, lia.id)).toMatchObject(look)
+    await actOnCard(ana, setup, card.id, "choose", { look: { shape: "square", color: "#2ea603" } })
+    expect(await findAgent(ana, lia.id)).toMatchObject(look)
   })
 
   test("says nothing was done when the names got taken before the member confirmed", async () => {
@@ -248,7 +278,7 @@ describe("actOnCard", () => {
 
     expect(await actOnCard(ana, lia, approval.id, "accept", { now })).toMatchObject({ status: "accepted" })
     const cards = (await listMessages(ana, lia)).flatMap((row) => (row.card ? [row] : []))
-    expect(cards.map((row) => [row.card?.title, row.card?.status])).toEqual([
+    expect(cards.map((row) => [row.card && "title" in row.card && row.card.title, row.card?.status])).toEqual([
       ["Marcar a sessão?", "accepted"],
       ["Sessão marcada", "applied"],
     ])

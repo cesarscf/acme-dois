@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { createOrganization, resetDatabase } from "@/test/fixtures"
 import type { Member } from "../member"
-import { createAgents } from "../organization/agents"
+import { createAgents, setupAgent } from "../organization/agents"
 import { findOrganizationProfile } from "../organization/profile"
 import { setupTools } from "./setup-tools"
 import { createToolRegistry } from "./tool-registry"
@@ -43,11 +43,13 @@ test("save_organization_profile replaces the profile and shows it in a receipt w
 })
 
 test("read_organization shows the profile and the team, not the setup agent", async () => {
-  await createAgents(ana, [{ ...lia, tools: ["read_agenda"], actsAlone: [] }])
+  const [created] = await createAgents(ana, [
+    { ...lia, tools: ["read_agenda"], actsAlone: [], shape: "round", color: "#2f80ff" },
+  ])
   const execution = await run("read_organization", {})
   expect(JSON.parse(execution.result.content as string)).toEqual({
     profile: null,
-    agents: [{ name: "Lia", role: "Secretária da agenda", tools: ["read_agenda"], acts_alone: [] }],
+    agents: [{ id: created.id, name: "Lia", role: "Secretária da agenda", tools: ["read_agenda"], acts_alone: [] }],
   })
 })
 
@@ -61,6 +63,7 @@ describe("propose_team", () => {
         {
           label: "Lia",
           value: "Secretária da agenda. Faz sozinho: Marcar sessões. Pergunta antes: Remarcar sessões.",
+          look: { shape: "square", color: "#2f80ff" },
         },
       ],
       status: "pending",
@@ -74,9 +77,20 @@ describe("propose_team", () => {
           instructions: "Você marca e remarca as sessões.",
           tools: ["find_customers", "read_agenda", "create_appointment", "reschedule_appointment"],
           actsAlone: ["create_appointment"],
+          shape: "square",
+          color: "#2f80ff",
         },
       ],
     })
+  })
+
+  test("gives each new agent a look the team isn't using", async () => {
+    const execution = await run("propose_team", { agents: [lia, { ...lia, name: "Tom" }] })
+    const { agents } = execution.action as { agents: { shape: string; color: string }[] }
+    expect(agents.map(({ shape, color }) => [shape, color])).toEqual([
+      ["square", "#2f80ff"],
+      ["round", "#9b6bff"],
+    ])
   })
 
   test("never lets an agent cancel alone", async () => {
@@ -99,5 +113,30 @@ describe("propose_team", () => {
   test("refuses a name the organization already uses", async () => {
     const execution = await run("propose_team", { agents: [{ ...lia, name: "acme bot" }] })
     expect(execution.result).toMatchObject({ is_error: true, content: "Já existe um agente chamado acme bot." })
+  })
+})
+
+describe("choose_agent_look", () => {
+  test("shows a card to pick the agent's look, starting from the one it has", async () => {
+    const [created] = await createAgents(ana, [
+      { ...lia, actsAlone: [], shape: "blob", color: "#ff5cae" },
+    ])
+    const execution = await run("choose_agent_look", { agent_id: created.id })
+    expect(execution.card).toEqual({
+      type: "look",
+      agentName: "Lia",
+      look: { shape: "blob", color: "#ff5cae" },
+      status: "pending",
+    })
+    expect(execution.action).toEqual({ kind: "look", agentId: created.id })
+  })
+
+  test("refuses the setup agent and agents of another organization", async () => {
+    const [other] = await createOrganization("Outra")
+    const [theirs] = await createAgents(other, [{ ...lia, actsAlone: [], shape: "blob", color: "#ff5cae" }])
+    expect((await run("choose_agent_look", { agent_id: theirs.id })).result.is_error).toBe(true)
+    const [setup] = await import("../organization/agents").then(({ listAgents }) => listAgents(ana))
+    expect(setup.name).toBe(setupAgent.name)
+    expect((await run("choose_agent_look", { agent_id: setup.id })).result.is_error).toBe(true)
   })
 })

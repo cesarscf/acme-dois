@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
+import { type AgentLook, avatarColors, avatarShapes } from "@/lib/agent/look"
 import { createAnthropicModel, type Model } from "@/lib/agent/model"
 import { actOnCard, sendMessage } from "@/lib/chat/conversation"
 import { requireMember } from "@/lib/dal"
@@ -22,15 +23,21 @@ export async function sendMessageAction(agentId: string, formData: FormData) {
 
 const cardChoice = z.object({
   messageId: z.uuid(),
-  choice: z.enum(["undo", "accept", "decline"]),
+  choice: z.enum(["undo", "accept", "decline", "choose"]),
+  look: z.object({ shape: z.enum(avatarShapes), color: z.enum(avatarColors) }).optional(),
 })
 
-export async function actOnCardAction(agentId: string, messageId: string, choice: string) {
+export async function actOnCardAction(
+  agentId: string,
+  messageId: string,
+  choice: string,
+  look?: AgentLook,
+) {
   const member = await requireMember()
   const agent = await findAgent(member, agentId)
-  const input = cardChoice.safeParse({ messageId, choice })
+  const input = cardChoice.safeParse({ messageId, choice, look })
   if (!agent || !input.success) return
-  await actOnCard(member, agent, input.data.messageId, input.data.choice)
-  // Confirming a team proposal adds agents to the list beside every conversation.
+  await actOnCard(member, agent, input.data.messageId, input.data.choice, { look: input.data.look })
+  // Confirming a team or a look changes the list beside every conversation.
   revalidatePath("/", "layout")
 }

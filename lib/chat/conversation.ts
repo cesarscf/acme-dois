@@ -12,7 +12,8 @@ import { createToolRegistry, type ToolContext } from "../agent/tool-registry"
 import { db } from "../db"
 import { message, transcriptEntry } from "../db/schema"
 import { type Member, organizationTimeZone } from "../member"
-import { type Agent, AgentError, createAgents } from "../organization/agents"
+import type { AgentLook } from "../agent/look"
+import { type Agent, AgentError, createAgents, updateAgentLook } from "../organization/agents"
 import { findOrganizationProfile } from "../organization/profile"
 
 const setupRegistry = createToolRegistry(setupTools)
@@ -130,23 +131,31 @@ export async function sendMessage(
   })
 }
 
-export type CardChoice = "undo" | "accept" | "decline"
+export type CardChoice = "undo" | "accept" | "decline" | "choose"
 
 const outcomes: Partial<Record<Card["status"], string>> = {
   undone: "desfez",
   accepted: "confirmou",
   declined: "recusou",
   stale: "tentou aplicar, mas nada foi feito em",
+  chosen: "escolheu",
 }
+
+const aboutOf = (card: Card) =>
+  card.type === "receipt"
+    ? `${card.title}: ${card.detail}`
+    : card.type === "look"
+      ? `Aparência de ${card.agentName}`
+      : card.title
 
 // What the agent is told happened to its card, so the next turn knows.
 function noteOf(member: Member, card: Card, detail?: string) {
-  const about = card.type === "receipt" ? `${card.title}: ${card.detail}` : card.title
+  const about = aboutOf(card)
   return `[Aviso do Acme, não escrito pelo membro] ${member.name} ${outcomes[card.status]} "${about}".${detail ? ` ${detail}` : ""}`
 }
 
 // `detail` tells the agent why nothing was done, or what was.
-type Outcome = { status: Card["status"]; detail?: string; followUp?: AgentReply }
+type Outcome = { card: Card; detail?: string; followUp?: AgentReply }
 
 // Applies a confirmed card's action, or says why it couldn't.
 async function accept(
@@ -154,7 +163,7 @@ async function accept(
   agent: Agent,
   action: CardAction,
   now: Date,
-): Promise<Outcome | undefined> {
+): Promise<Omit<Outcome, "card"> & { status: Card["status"] } | undefined> {
   if (action.kind === "cancel") {
     const cancelled = await cancelAppointment(member, action.appointmentId, new Date(action.updatedAt))
     return cancelled === "stale"
@@ -163,8 +172,11 @@ async function accept(
   }
   if (action.kind === "create_agents") {
     try {
-      await createAgents(member, action.agents)
-      return { status: "accepted" }
+      const created = await createAgents(member, action.agents)
+      return {
+        status: "accepted",
+        detail: `Agentes criados: ${created.map((agent) => `${agent.name} (id ${agent.id})`).join(", ")}.`,
+      }
     } catch (failure) {
       if (failure instanceof AgentError) return { status: "stale", detail: `Motivo: ${failure.message}` }
       throw failure
@@ -192,7 +204,7 @@ export async function actOnCard(
   agent: Agent,
   messageId: string,
   choice: CardChoice,
-  { now = new Date() }: { now?: Date } = {},
+  { now = new Date(), look }: { now?: Date; look?: AgentLook } = {},
 ) {
   const [found] = await db
     .select({ card: message.card, action: message.action })
@@ -202,13 +214,26 @@ export async function actOnCard(
   if (!card || !action) return undefined
 
   let outcome: Outcome | undefined
-  if (card.type === "receipt" && card.status === "applied" && choice === "undo" && action.kind === "undo")
-    outcome = { status: (await applyRestores(member, action.restores)) === "restored" ? "undone" : "stale" }
-  if (card.type === "approval" && card.status === "pending")
-    outcome = choice === "decline" ? { status: "declined" } : choice === "accept" ? await accept(member, agent, action, now) : undefined
+  if (card.type === "receipt" && card.status === "applied" && choice === "undo" && action.kind === "undo") {
+    const restored = (await applyRestores(member, action.restores)) === "restored"
+    outcome = { card: { ...card, status: restored ? "undone" : "stale" } }
+  }
+  if (card.type === "approval" && card.status === "pending") {
+    const decided =
+      choice === "decline"
+        ? { status: "declined" as const }
+        : choice === "accept"
+          ? await accept(member, agent, action, now)
+          : undefined
+    if (decided) outcome = { ...decided, card: { ...card, status: decided.status } as Card }
+  }
+  if (card.type === "look" && card.status === "pending" && choice === "choose" && look && action.kind === "look") {
+    if (await updateAgentLook(member, action.agentId, look))
+      outcome = { card: { ...card, look, status: "chosen" }, detail: `Forma ${look.shape}, cor ${look.color}.` }
+  }
   if (!outcome) return card
 
-  const updated = { ...card, status: outcome.status } as Card
+  const updated = outcome.card
   await db.transaction(async (tx) => {
     await tx.update(message).set({ card: updated }).where(eq(message.id, messageId))
     await tx.insert(transcriptEntry).values({

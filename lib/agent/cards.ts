@@ -1,3 +1,5 @@
+import type { AgentLook } from "./look"
+
 // Cards are typed blocks inside an agent's message. The member acts on them; what each action
 // applies lives in `CardAction`, kept on the server.
 
@@ -13,11 +15,20 @@ export type ReceiptCard = {
 export type ApprovalCard = {
   type: "approval"
   title: string
-  rows: { label: string; value: string }[]
+  // A row about an agent shows its avatar.
+  rows: { label: string; value: string; look?: AgentLook }[]
   status: "pending" | "accepted" | "declined" | "stale"
 }
 
-export type Card = ReceiptCard | ApprovalCard
+// The member picks an agent's shape and color right in the card.
+export type LookCard = {
+  type: "look"
+  agentName: string
+  look: AgentLook
+  status: "pending" | "chosen"
+}
+
+export type Card = ReceiptCard | ApprovalCard | LookCard
 
 // Puts `restore` back on an appointment while it is still at `updatedAt`.
 export type Restore = {
@@ -27,7 +38,7 @@ export type Restore = {
 }
 
 // An agent the setup agent proposes, as the member confirms it.
-export type ProposedAgent = {
+export type ProposedAgent = AgentLook & {
   name: string
   role: string
   instructions: string
@@ -41,3 +52,4 @@ export type CardAction =
   // A tool call the agent may not make alone, run as asked once a member confirms it.
   | { kind: "apply"; tool: string; input: unknown }
   | { kind: "create_agents"; agents: ProposedAgent[] }
+  | { kind: "look"; agentId: string }
