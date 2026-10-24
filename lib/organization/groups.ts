@@ -92,28 +92,30 @@ export const teamAgents = (organizationId: string) =>
 // team agent, as they are now. Only one the member is in, unless `anyInOrganization`.
 async function loadGroup(member: Member, id: string, { anyInOrganization = false } = {}) {
   if (!/^[0-9a-f-]{36}$/i.test(id)) return undefined
-  const [found] = await db
-    .select({
-      id: chatGroup.id,
-      name: chatGroup.name,
-      general: chatGroup.general,
-      createdBy: chatGroup.createdBy,
-      createdAt: chatGroup.createdAt,
-    })
-    .from(chatGroup)
-    .where(
-      and(
-        eq(chatGroup.id, id),
-        anyInOrganization ? eq(chatGroup.organizationId, member.organizationId) : visibleTo(member),
+  // Who is in it is read with the group itself; it is only used once the group is found visible.
+  const [[found], team, agents, memberIds, agentIds] = await Promise.all([
+    db
+      .select({
+        id: chatGroup.id,
+        name: chatGroup.name,
+        general: chatGroup.general,
+        createdBy: chatGroup.createdBy,
+        createdAt: chatGroup.createdAt,
+      })
+      .from(chatGroup)
+      .where(
+        and(
+          eq(chatGroup.id, id),
+          anyInOrganization ? eq(chatGroup.organizationId, member.organizationId) : visibleTo(member),
+        ),
       ),
-    )
-  if (!found) return undefined
-  const [team, agents] = await Promise.all([listTeam(member.organizationId), teamAgents(member.organizationId)])
-  if (found.general) return { ...found, members: team, agents }
-  const [memberIds, agentIds] = await Promise.all([
+    listTeam(member.organizationId),
+    teamAgents(member.organizationId),
     db.select({ id: chatGroupMember.memberId }).from(chatGroupMember).where(eq(chatGroupMember.groupId, id)),
     db.select({ id: chatGroupAgent.agentId }).from(chatGroupAgent).where(eq(chatGroupAgent.groupId, id)),
   ])
+  if (!found) return undefined
+  if (found.general) return { ...found, members: team, agents }
   const [inMembers, inAgents] = [new Set(memberIds.map((row) => row.id)), new Set(agentIds.map((row) => row.id))]
   return {
     ...found,

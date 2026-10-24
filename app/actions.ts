@@ -18,8 +18,10 @@ const messageText = z.string().trim().min(1).max(4000)
 
 export async function sendMessageAction(agentId: string, input: string) {
   const member = await requireMember()
-  const [agent, text] = [await findAgent(member, agentId), messageText.safeParse(input)]
-  if (!agent || !text.success) return
+  const text = messageText.safeParse(input)
+  if (!text.success) return
+  const agent = await findAgent(member, agentId)
+  if (!agent) return
   await sendMessage(member, agent, text.data, { model: (model ??= createAnthropicModel()) })
   // The list beside every conversation shows the reply, even if the member opened another one.
   revalidatePath("/", "layout")
@@ -28,8 +30,10 @@ export async function sendMessageAction(agentId: string, input: string) {
 // The member saw the conversation up to its message at `upTo`.
 export async function markReadAction(agentId: string, upTo: string) {
   const member = await requireMember()
-  const [agent, seen] = [await findAgent(member, agentId), z.iso.datetime().safeParse(upTo)]
-  if (!agent || !seen.success) return
+  const seen = z.iso.datetime().safeParse(upTo)
+  if (!seen.success) return
+  const agent = await findAgent(member, agentId)
+  if (!agent) return
   await markRead(member, agent, new Date(seen.data))
   revalidatePath("/", "layout")
 }
@@ -51,9 +55,10 @@ export async function actOnCardAction(
   settled?: { look?: AgentLook; team?: AgentChoice[] },
 ) {
   const member = await requireMember()
-  const agent = await findAgent(member, agentId)
   const input = cardChoice.safeParse({ messageId, choice, ...settled })
-  if (!agent || !input.success) return
+  if (!input.success) return
+  const agent = await findAgent(member, agentId)
+  if (!agent) return
   await actOnCard(member, agent, input.data.messageId, input.data.choice, {
     look: input.data.look,
     team: input.data.team,
@@ -66,8 +71,10 @@ export async function actOnCardAction(
 // nobody will, when the member called an agent outside the group.
 export async function sendGroupMessageAction(groupId: string, input: string): Promise<{ notice?: string }> {
   const member = await requireMember()
-  const [group, text] = [await findGroup(member, groupId), messageText.safeParse(input)]
-  if (!group || !text.success) return {}
+  const text = messageText.safeParse(input)
+  if (!text.success) return {}
+  const group = await findGroup(member, groupId)
+  if (!group) return {}
   const sent = await sendGroupMessage(member, group, text.data, { model: (model ??= createAnthropicModel()) })
   revalidatePath("/", "layout")
   return sent
@@ -75,8 +82,10 @@ export async function sendGroupMessageAction(groupId: string, input: string): Pr
 
 export async function markGroupReadAction(groupId: string, upTo: string) {
   const member = await requireMember()
-  const [group, seen] = [await findGroup(member, groupId), z.iso.datetime().safeParse(upTo)]
-  if (!group || !seen.success) return
+  const seen = z.iso.datetime().safeParse(upTo)
+  if (!seen.success) return
+  const group = await findGroup(member, groupId)
+  if (!group) return
   await markGroupRead(member, group, new Date(seen.data))
   revalidatePath("/", "layout")
 }
@@ -85,9 +94,10 @@ const groupCardChoice = z.object({ messageId: z.uuid(), choice: z.enum(["undo", 
 
 export async function actOnGroupCardAction(groupId: string, messageId: string, choice: string) {
   const member = await requireMember()
-  const group = await findGroup(member, groupId)
   const input = groupCardChoice.safeParse({ messageId, choice })
-  if (!group || !input.success) return
+  if (!input.success) return
+  const group = await findGroup(member, groupId)
+  if (!group) return
   await actOnGroupCard(member, group, input.data.messageId, input.data.choice)
   revalidatePath("/", "layout")
 }
@@ -187,8 +197,10 @@ const groupChange = z.object({
 // Who created the group, or runs the organization, puts people and agents in it or takes them out.
 export async function changeGroupAction(groupId: string, change: z.infer<typeof groupChange>): Promise<{ error?: string }> {
   const member = await requireMember()
-  const [group, input] = [await findGroup(member, groupId), groupChange.safeParse(change)]
-  if (!group || !input.success) return { error: "Não deu para mudar o grupo." }
+  const input = groupChange.safeParse(change)
+  if (!input.success) return { error: "Não deu para mudar o grupo." }
+  const group = await findGroup(member, groupId)
+  if (!group) return { error: "Não deu para mudar o grupo." }
   try {
     await changeGroup(member, group, input.data)
   } catch (failure) {

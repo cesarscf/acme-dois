@@ -1,7 +1,7 @@
 "use client"
 
 import { ArrowDownIcon } from "lucide-react"
-import { Fragment, type ReactNode, useEffect, useState } from "react"
+import { Fragment, type ReactNode, useEffect, useMemo, useState } from "react"
 import { markGroupReadAction, sendGroupMessageAction } from "@/app/actions"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { useConversations } from "@/components/conversations"
@@ -35,11 +35,17 @@ type Props = {
   profile: GroupProfile
 }
 
-// "@Lia" stands out in what members write, for the agents of the group.
-function withMentions(text: string, agents: Mentionable[]): ReactNode {
-  if (!agents.length) return text
+// What finds "@Lia" for the agents of the group, made once for all the messages.
+function mentionPattern(agents: Mentionable[]) {
+  if (!agents.length) return null
   const names = agents.map((agent) => agent.name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).sort((a, b) => b.length - a.length)
-  return text.split(new RegExp(`(@(?:${names.join("|")}))(?![\\p{L}\\p{N}_])`, "giu")).map((part, index) =>
+  return new RegExp(`(@(?:${names.join("|")}))(?![\\p{L}\\p{N}_])`, "giu")
+}
+
+// "@Lia" stands out in what members write, for the agents of the group.
+function withMentions(text: string, pattern: RegExp | null): ReactNode {
+  if (!pattern) return text
+  return text.split(pattern).map((part, index) =>
     index % 2 ? (
       <span key={index} className="font-semibold text-brand">
         {part}
@@ -64,6 +70,7 @@ export function GroupChat({ group, agents, messages, profile }: Props) {
   const [notice, setNotice] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const answering = working.has(group.id) ? calling : null
+  const mentions = useMemo(() => mentionPattern(agents), [agents])
 
   const unread = conversations.some((conversation) => conversation.id === group.id && conversation.unread)
   const lastAt = messages.at(-1)?.createdAt.toISOString()
@@ -146,7 +153,7 @@ export function GroupChat({ group, agents, messages, profile }: Props) {
                     previous && previous.by.kind === message.by.kind && previous.by.name === message.by.name
                   return (
                     <MessageScrollerItem key={message.id} messageId={message.id} className="flex flex-col">
-                      <GroupMessage groupId={group.id} message={message} agents={agents} named={!sameAuthor} />
+                      <GroupMessage groupId={group.id} message={message} mentions={mentions} named={!sameAuthor} />
                     </MessageScrollerItem>
                   )
                 })}
@@ -183,23 +190,23 @@ export function GroupChat({ group, agents, messages, profile }: Props) {
 function GroupMessage({
   groupId,
   message,
-  agents,
+  mentions,
   named,
 }: {
   groupId: string
   message: GroupChatMessage
-  agents: Mentionable[]
+  mentions: RegExp | null
   // The first of a run of messages by the same author shows who wrote them.
   named: boolean
 }) {
   const { by } = message
-  if (message.mine) return <MemberBubble>{withMentions(message.text ?? "", agents)}</MemberBubble>
+  if (message.mine) return <MemberBubble>{withMentions(message.text ?? "", mentions)}</MemberBubble>
   if (by.kind === "member")
     return (
       <div className="flex max-w-[80%] flex-col gap-1 self-start">
         {named ? <span className="px-1 text-[12px] font-semibold text-sub">{by.name}</span> : null}
         <div className="rounded-[20px] bg-surface px-4 py-2.5 text-[15px] leading-snug whitespace-pre-wrap text-ink">
-          {withMentions(message.text ?? "", agents)}
+          {withMentions(message.text ?? "", mentions)}
         </div>
       </div>
     )

@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk"
 import { and, asc, desc, eq, gt, inArray, lte, max, ne, or, sql } from "drizzle-orm"
-import { listTeam } from "../agenda/team"
+import { listTeam, type Teammate } from "../agenda/team"
 import type { Card } from "../agent/cards"
 import { groupLooks } from "../agent/look"
 import type { Model } from "../agent/model"
@@ -19,9 +19,10 @@ import { mentionsIn } from "./mentions"
 // Each agent keeps a transcript of its own per group, apart from its direct conversations.
 
 // Names by id of everyone who writes in the organization's groups, including who left the team.
-async function authors(organizationId: string) {
+// `known` is the team, when the caller has read it already.
+async function authors(organizationId: string, known?: Teammate[] | Promise<Teammate[]>) {
   const [team, agents] = await Promise.all([
-    listTeam(organizationId),
+    known ?? listTeam(organizationId),
     db
       .select({ id: agentTable.id, name: agentTable.name, shape: agentTable.shape, color: agentTable.color })
       .from(agentTable)
@@ -142,10 +143,11 @@ async function answerInGroup(
   { model, now }: { model: Model; now: Date },
 ) {
   const place = { group: group.name, others: group.agents.filter((other) => other.id !== agent.id).map((other) => other.name) }
-  const [names, team, harness] = await Promise.all([
-    authors(member.organizationId),
-    listTeam(member.organizationId),
-    harnessFor(member, agent, now, "asked", place),
+  // The harness reads the team; the names of who wrote reuse it.
+  const harnessing = harnessFor(member, agent, now, "asked", place)
+  const [names, { team, ...harness }] = await Promise.all([
+    authors(member.organizationId, harnessing.then(({ team }) => team)),
+    harnessing,
   ])
 
   await db.transaction(async (tx) => {
@@ -261,10 +263,20 @@ export async function markGroupRead(member: Member, group: Group, upTo: Date, no
 // Each of the member's groups as the list beside the conversation shows it: its last message, with
 // who wrote it, and whether someone else wrote since the member last read it.
 export async function listGroupSummaries(member: Member) {
+  // What doesn't depend on which groups they are is read while the groups are.
+  const independent = Promise.all([
+    db
+      .select({ groupId: groupRead.groupId, readAt: groupRead.readAt })
+      .from(groupRead)
+      .where(eq(groupRead.memberId, member.id)),
+    authors(member.organizationId),
+    teamAgents(member.organizationId),
+  ])
+  independent.catch(() => {})
   const groups = await listGroups(member)
   if (groups.length === 0) return []
   const ids = groups.map((group) => group.id)
-  const [lasts, fromOthers, reads, names, team, chosen, people] = await Promise.all([
+  const [lasts, fromOthers, [reads, names, team], chosen, people] = await Promise.all([
     db
       .selectDistinctOn([groupMessage.groupId], {
         groupId: groupMessage.groupId,
@@ -288,12 +300,7 @@ export async function listGroupSummaries(member: Member) {
         ),
       )
       .groupBy(groupMessage.groupId),
-    db
-      .select({ groupId: groupRead.groupId, readAt: groupRead.readAt })
-      .from(groupRead)
-      .where(eq(groupRead.memberId, member.id)),
-    authors(member.organizationId),
-    teamAgents(member.organizationId),
+    independent,
     db
       .select({ groupId: chatGroupAgent.groupId, agentId: chatGroupAgent.agentId })
       .from(chatGroupAgent)

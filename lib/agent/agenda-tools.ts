@@ -35,8 +35,8 @@ async function teamNames(member: Member) {
   return new Map(team.map((teammate) => [teammate.id, teammate.name]))
 }
 
-async function teammate(member: Member, memberId: string) {
-  const name = (await teamNames(member)).get(memberId)
+async function teammate(member: Member, memberId: string, names?: Map<string, string>) {
+  const name = (names ?? (await teamNames(member))).get(memberId)
   if (!name) throw new ToolRefusal(`${memberId} não é membro da equipe.`)
   return name
 }
@@ -61,6 +61,10 @@ async function scheduled(member: Member, appointmentId: string) {
   const customer = await findCustomer(member, appointment.customerId)
   return { ...appointment, customer: customer?.name ?? "" }
 }
+
+// The appointment and the team's names, read together.
+const scheduledWithNames = (member: Member, appointmentId: string) =>
+  Promise.all([scheduled(member, appointmentId), teamNames(member)])
 
 export const findCustomersTool = defineTool({
   name: "find_customers",
@@ -132,9 +136,12 @@ export const createAppointmentTool = defineTool({
   }),
   async confirm(input, context) {
     const startsAt = startOf(input, context)
-    const customer = await findCustomer(context.member, input.customer_id)
+    const [customer, names] = await Promise.all([
+      findCustomer(context.member, input.customer_id),
+      teamNames(context.member),
+    ])
     if (!customer) throw new ToolRefusal(`${input.customer_id} não é cliente da clínica.`)
-    const attending = await teammate(context.member, input.member_id ?? context.member.id)
+    const attending = await teammate(context.member, input.member_id ?? context.member.id, names)
     return {
       title: "Marcar a sessão?",
       rows: [
@@ -148,7 +155,7 @@ export const createAppointmentTool = defineTool({
   async run(input, context) {
     const { member, timeZone } = context
     const startsAt = startOf(input, context)
-    const customer = await findCustomer(member, input.customer_id)
+    const [customer, names] = await Promise.all([findCustomer(member, input.customer_id), teamNames(member)])
     if (!customer) throw new ToolRefusal(`${input.customer_id} não é cliente da clínica.`)
     const memberId = input.member_id ?? member.id
     const created = await createAppointment(member, {
@@ -159,7 +166,6 @@ export const createAppointmentTool = defineTool({
       kind: input.kind,
     })
     await context.changed?.([{ from: null, to: created }])
-    const names = await teamNames(member)
     return {
       output: { appointment_id: created.id, note: shownNote },
       card: receipt(
@@ -184,8 +190,7 @@ export const rescheduleAppointmentTool = defineTool({
   }),
   async confirm(input, context) {
     const startsAt = startOf(input, context)
-    const appointment = await scheduled(context.member, input.appointment_id)
-    const names = await teamNames(context.member)
+    const [appointment, names] = await scheduledWithNames(context.member, input.appointment_id)
     return {
       title: "Remarcar a sessão?",
       rows: [
@@ -231,13 +236,13 @@ export const assignAppointmentTool = defineTool({
   description: "Define quem da equipe atende uma sessão (o id vem de read_agenda).",
   input: z.object({ appointment_id: id, member_id: id.describe("Quem passa a atender.") }),
   async confirm(input, context) {
-    const appointment = await scheduled(context.member, input.appointment_id)
+    const [appointment, names] = await scheduledWithNames(context.member, input.appointment_id)
     return {
       title: "Trocar quem atende?",
       rows: [
         { label: "Cliente", value: appointment.customer },
         { label: "Sessão", value: appointmentLabel(appointment.startsAt, context.timeZone) },
-        { label: "Passa a atender", value: await teammate(context.member, input.member_id) },
+        { label: "Passa a atender", value: await teammate(context.member, input.member_id, names) },
       ],
     }
   },
@@ -269,8 +274,7 @@ export const cancelAppointmentTool = defineTool({
     reason: z.string().max(200).nullable().describe("O motivo, se houver."),
   }),
   async run(input, { member, timeZone }) {
-    const appointment = await scheduled(member, input.appointment_id)
-    const names = await teamNames(member)
+    const [appointment, names] = await scheduledWithNames(member, input.appointment_id)
     const reason = input.reason?.trim()
     const card: ApprovalCard = {
       type: "approval",

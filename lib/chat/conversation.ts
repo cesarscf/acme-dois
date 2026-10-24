@@ -18,7 +18,7 @@ import {
   AgentError,
   agentOrder,
   createAgents,
-  findAgent,
+  findSetupAgent,
   listAgents,
   newAgentProblem,
   restoreAgentProfile,
@@ -39,6 +39,7 @@ export async function harnessFor(member: Member, agent: Agent, now: Date, via: V
       system: setupPrompt,
       tools: setupRegistry,
       context: { member, now, timeZone: organizationTimeZone, actsAlone: [], appointmentMinutes: null },
+      team: await listTeam(member.organizationId),
     }
   const [profile, team] = await Promise.all([
     findOrganizationProfile(member.organizationId),
@@ -53,8 +54,10 @@ export async function harnessFor(member: Member, agent: Agent, now: Date, via: V
       timeZone: organizationTimeZone,
       actsAlone: agent.actsAlone,
       appointmentMinutes: profile?.appointmentMinutes ?? null,
-      changed: (changes) => notifyChanges({ actor: member, agentId: agent.id, via, now }, changes),
+      changed: (changes) => notifyChanges({ actor: member, agentId: agent.id, via, now }, changes, team),
     } satisfies ToolContext,
+    // The team, read once for the prompt and for whoever runs the turn.
+    team,
   }
 }
 
@@ -194,13 +197,11 @@ export async function sendMessage(
   text: string,
   { model, now = new Date(), note }: { model: Model; now?: Date; note?: string },
 ) {
-  await db
-    .insert(message)
-    .values({ memberId: member.id, agentId: agent.id, author: "member", text, createdAt: now })
-  const [transcript, team, harness] = await Promise.all([
+  // The transcript doesn't hold the member's message, so it is read while that is stored.
+  const [transcript, { team, ...harness }] = await Promise.all([
     transcriptOf(member, agent),
-    listTeam(member.organizationId),
     harnessFor(member, agent, now, "asked"),
+    db.insert(message).values({ memberId: member.id, agentId: agent.id, author: "member", text, createdAt: now }),
   ])
   const asked: Anthropic.Beta.BetaMessageParam[] = [
     { role: "user", content: note ? `${text}\n\n${note}` : text },
@@ -402,10 +403,9 @@ export async function askForNewAgent(
   { model, now = new Date() }: { model: Model; now?: Date },
 ) {
   const name = input.name.trim().replace(/\s+/g, " ")
-  const problem = await newAgentProblem(member, name)
+  const [problem, setup] = await Promise.all([newAgentProblem(member, name), findSetupAgent(member)])
   if (problem) throw new AgentError(problem)
-  const [setup] = await listAgents(member)
-  await sendMessage(member, (await findAgent(member, setup.id))!, `Quero criar um agente novo: ${name}.`, {
+  await sendMessage(member, setup, `Quero criar um agente novo: ${name}.`, {
     model,
     now,
     note: `[Aviso do Acme, não escrito pelo membro] O membro pediu pelo botão Novo agente e já escolheu o nome e a aparência: nome "${name}", look { shape: "${input.look.shape}", color: "${input.look.color}" }. Pergunte o que esse agente vai fazer, se ele ainda não disse, e proponha com propose_team usando exatamente esse nome e esse look.`,

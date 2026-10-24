@@ -52,6 +52,15 @@ export async function findAgent(member: Member, id: string) {
   return found
 }
 
+// Every organization has one, made with it.
+export async function findSetupAgent(member: Member) {
+  const [found] = await db
+    .select()
+    .from(agent)
+    .where(and(eq(agent.organizationId, member.organizationId), eq(agent.kind, "setup")))
+  return found
+}
+
 export class AgentError extends Error {}
 
 // Why an agent can't be asked for under this name, if it can't.

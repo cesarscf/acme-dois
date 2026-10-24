@@ -1,6 +1,6 @@
 import type { AgendaChange, Appointment } from "../agenda/appointments"
 import { findCustomer } from "../agenda/customers"
-import { listTeam } from "../agenda/team"
+import { listTeam, type Teammate } from "../agenda/team"
 import { db } from "../db"
 import { message, transcriptEntry } from "../db/schema"
 import { type Member, organizationTimeZone } from "../member"
@@ -85,19 +85,18 @@ export const noticeNote = (text: string) =>
 export async function notifyChanges(
   { actor, agentId, via, now }: { actor: Member; agentId: string; via: Via; now: Date },
   changes: AgendaChange[],
+  // The team, when the caller has read it already.
+  knownTeam?: Teammate[],
 ) {
   try {
-    const team = await listTeam(actor.organizationId)
+    const [team, customers] = await Promise.all([
+      knownTeam ?? listTeam(actor.organizationId),
+      Promise.all(changes.map((change) => findCustomer(actor, (change.to ?? change.from)!.customerId))),
+    ])
     const names = new Map(team.map((teammate) => [teammate.id, teammate.name]))
-    const notices = (
-      await Promise.all(
-        changes.map(async (change) => {
-          const { customerId } = (change.to ?? change.from)!
-          const customer = (await findCustomer(actor, customerId))?.name ?? "Cliente"
-          return noticesOf(change, { actor, via, customer, names, now })
-        }),
-      )
-    ).flat()
+    const notices = changes.flatMap((change, index) =>
+      noticesOf(change, { actor, via, customer: customers[index]?.name ?? "Cliente", names, now }),
+    )
     if (notices.length === 0) return
     await db.transaction(async (tx) => {
       // A millisecond apart, so each conversation lists them in order.

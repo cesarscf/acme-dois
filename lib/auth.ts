@@ -37,8 +37,7 @@ export const auth = betterAuth({
       requireEmailVerificationOnInvitation: false,
       organizationHooks: {
         afterCreateOrganization: async ({ organization }) => {
-          await createSetupAgent(organization.id)
-          await createGeneralGroup(organization.id)
+          await Promise.all([createSetupAgent(organization.id), createGeneralGroup(organization.id)])
         },
       },
     }),

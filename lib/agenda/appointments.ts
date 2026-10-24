@@ -71,13 +71,15 @@ export type NewAppointment = {
 }
 
 export async function createAppointment(member: Member, input: NewAppointment) {
-  const [owner] = await db
-    .select({ id: customer.id })
-    .from(customer)
-    .where(and(eq(customer.id, input.customerId), eq(customer.organizationId, member.organizationId)))
+  const [[owner], attends] = await Promise.all([
+    db
+      .select({ id: customer.id })
+      .from(customer)
+      .where(and(eq(customer.id, input.customerId), eq(customer.organizationId, member.organizationId))),
+    input.memberId ? isOrganizationMember(member.organizationId, input.memberId) : true,
+  ])
   if (!owner) throw new AgendaError("Essa cliente não é da clínica.")
-  if (input.memberId && !(await isOrganizationMember(member.organizationId, input.memberId)))
-    throw new AgendaError("Quem atende precisa ser da equipe.")
+  if (!attends) throw new AgendaError("Quem atende precisa ser da equipe.")
   const [created] = await db
     .insert(appointment)
     .values({
@@ -135,10 +137,9 @@ export async function rescheduleAppointment(
 }
 
 export async function assignAppointment(member: Member, id: string, memberId: string) {
-  const from = await scheduled(member, id)
+  const [from, attends] = await Promise.all([scheduled(member, id), isOrganizationMember(member.organizationId, memberId)])
   if (from.memberId === memberId) throw new AgendaError("Essa pessoa já atende essa sessão.")
-  if (!(await isOrganizationMember(member.organizationId, memberId)))
-    throw new AgendaError("Quem atende precisa ser da equipe.")
+  if (!attends) throw new AgendaError("Quem atende precisa ser da equipe.")
   const [updated] = await db
     .update(appointment)
     .set({ memberId })
