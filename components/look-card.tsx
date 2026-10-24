@@ -3,9 +3,8 @@
 import { useState, useTransition } from "react"
 import { actOnCardAction } from "@/app/actions"
 import { AgentAvatar } from "@/components/agent-avatar"
-import { Badge } from "@/components/ui/badge"
+import { cardFrame } from "@/components/card-frame"
 import { Button } from "@/components/ui/button"
-import { Card, CardAction, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import type { LookCard as LookCardData } from "@/lib/agent/cards"
 import { avatarColors, avatarShapes, type AvatarShape } from "@/lib/agent/look"
 import { cn } from "@/lib/utils"
@@ -33,72 +32,69 @@ type Props = { agentId: string; messageId: string; card: LookCardData }
 export function LookCard({ agentId, messageId, card }: Props) {
   const [look, setLook] = useState(card.look)
   const [pending, startTransition] = useTransition()
-  const chosen = card.status === "chosen"
-  const shown = chosen ? card.look : look
+
+  if (card.status === "chosen")
+    return (
+      <div className={cn(cardFrame, "flex items-center gap-2.5 px-3 py-2.5")}>
+        <AgentAvatar look={card.look} size={28} />
+        <p className="flex-1 text-sm font-medium">Aparência de {card.agentName}</p>
+        <span className="text-xs text-muted-foreground">Escolhida</span>
+      </div>
+    )
 
   return (
-    <Card size="sm" className="w-full max-w-sm">
-      <CardHeader>
-        <CardTitle>Aparência de {card.agentName}</CardTitle>
-        {chosen ? (
-          <CardAction>
-            <Badge variant="secondary">Escolhida</Badge>
-          </CardAction>
-        ) : null}
-      </CardHeader>
-      <CardContent className="flex flex-col items-center gap-4">
-        <AgentAvatar look={shown} size={88} />
-        {chosen ? null : (
-          <>
-            <div role="radiogroup" aria-label="Forma" className="flex gap-2">
-              {avatarShapes.map((shape) => (
-                <button
-                  key={shape}
-                  type="button"
-                  role="radio"
-                  aria-checked={look.shape === shape}
-                  aria-label={shapeNames[shape]}
-                  onClick={() => setLook((current) => ({ ...current, shape }))}
-                  className={cn(
-                    "rounded-xl border border-transparent p-1.5 hover:bg-muted",
-                    look.shape === shape && "border-ring bg-muted",
-                  )}
-                >
-                  <AgentAvatar look={{ ...look, shape }} size={36} />
-                </button>
-              ))}
-            </div>
-            <div role="radiogroup" aria-label="Cor" className="flex flex-wrap justify-center gap-2">
-              {avatarColors.map((color) => (
-                <button
-                  key={color}
-                  type="button"
-                  role="radio"
-                  aria-checked={look.color === color}
-                  aria-label={colorNames[color]}
-                  onClick={() => setLook((current) => ({ ...current, color }))}
-                  className={cn(
-                    "size-7 rounded-full ring-offset-2 ring-offset-background",
-                    look.color === color && "ring-2 ring-ring",
-                  )}
-                  style={{ backgroundColor: color }}
-                />
-              ))}
-            </div>
-          </>
-        )}
-      </CardContent>
-      {chosen ? null : (
-        <CardFooter>
-          <Button
-            size="sm"
-            disabled={pending}
-            onClick={() => startTransition(() => actOnCardAction(agentId, messageId, "choose", look))}
+    <div className={cn(cardFrame, "flex flex-col gap-3 p-3")}>
+      <div className="flex items-center gap-3">
+        <AgentAvatar look={look} size={48} />
+        <div className="min-w-0">
+          <p className="text-sm font-medium">Aparência de {card.agentName}</p>
+          <p className="text-xs text-muted-foreground">Escolha a forma e a cor.</p>
+        </div>
+      </div>
+      <div role="radiogroup" aria-label="Forma" className="flex gap-1">
+        {avatarShapes.map((shape) => (
+          <button
+            key={shape}
+            type="button"
+            role="radio"
+            aria-checked={look.shape === shape}
+            aria-label={shapeNames[shape]}
+            onClick={() => setLook((current) => ({ ...current, shape }))}
+            className={cn(
+              "rounded-lg border border-transparent p-1 hover:bg-muted",
+              look.shape === shape && "border-ring bg-muted",
+            )}
           >
-            Escolher
-          </Button>
-        </CardFooter>
-      )}
-    </Card>
+            <AgentAvatar look={{ ...look, shape }} size={28} />
+          </button>
+        ))}
+      </div>
+      <div role="radiogroup" aria-label="Cor" className="flex flex-wrap gap-1.5">
+        {avatarColors.map((color) => (
+          <button
+            key={color}
+            type="button"
+            role="radio"
+            aria-checked={look.color === color}
+            aria-label={colorNames[color]}
+            onClick={() => setLook((current) => ({ ...current, color }))}
+            className={cn(
+              "size-5 rounded-full ring-offset-2 ring-offset-card",
+              look.color === color && "ring-2 ring-ring",
+            )}
+            style={{ backgroundColor: color }}
+          />
+        ))}
+      </div>
+      <div>
+        <Button
+          size="xs"
+          disabled={pending}
+          onClick={() => startTransition(() => actOnCardAction(agentId, messageId, "choose", look))}
+        >
+          Escolher
+        </Button>
+      </div>
+    </div>
   )
 }
