@@ -13,7 +13,7 @@ export default async function AgentPage({ params }: PageProps<"/agents/[agentId]
   return (
     <>
       <header className="flex items-center gap-3 border-b px-4 py-3">
-        <AgentAvatar name={agent.name} />
+        <AgentAvatar look={agent} />
         <div className="min-w-0">
           <h1 className="font-medium">{agent.name}</h1>
           <p className="truncate text-sm text-muted-foreground">{agent.role}</p>

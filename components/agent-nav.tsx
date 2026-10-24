@@ -3,9 +3,10 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { AgentAvatar } from "@/components/agent-avatar"
+import type { AgentLook } from "@/lib/agent/look"
 import { cn } from "@/lib/utils"
 
-type NavAgent = { id: string; name: string; role: string }
+type NavAgent = AgentLook & { id: string; name: string; role: string }
 
 // A row that scrolls sideways on a phone, a column beside the conversation from md up.
 export function AgentNav({ agents }: { agents: NavAgent[] }) {
@@ -25,7 +26,7 @@ export function AgentNav({ agents }: { agents: NavAgent[] }) {
               active && "bg-muted",
             )}
           >
-            <AgentAvatar name={agent.name} />
+            <AgentAvatar look={agent} />
             <span className="min-w-0">
               <span className="block font-medium">{agent.name}</span>
               <span className="hidden truncate text-xs text-muted-foreground md:block">{agent.role}</span>
