@@ -11,7 +11,6 @@ import {
   SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
-  SidebarGroupLabel,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
@@ -28,7 +27,6 @@ type Props = { organizationName: string; memberName: string; agents: SidebarAgen
 export function AppSidebar({ organizationName, memberName, agents }: Props) {
   const pathname = usePathname()
   const { setOpenMobile } = useSidebar()
-  const [setup, ...team] = agents
 
   const item = (agent: SidebarAgent) => {
     const href = `/agents/${agent.id}`
@@ -62,19 +60,7 @@ export function AppSidebar({ organizationName, memberName, agents }: Props) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>{item(setup)}</SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel>Equipe</SidebarGroupLabel>
-          <SidebarGroupContent>
-            {team.length ? (
-              <SidebarMenu>{team.map(item)}</SidebarMenu>
-            ) : (
-              <p className="px-2 text-xs text-muted-foreground group-data-[collapsible=icon]:hidden">
-                Ainda sem agentes. Monte a equipe com a {setup.name}.
-              </p>
-            )}
+            <SidebarMenu>{agents.map(item)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
