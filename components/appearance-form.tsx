@@ -6,7 +6,7 @@ import { SalteCard } from "@/components/salte"
 import { type AgentLook, avatarColors, avatarShapes, type AvatarShape } from "@/lib/agent/look"
 import { cn } from "@/lib/utils"
 
-const shapeNames: Record<AvatarShape, string> = {
+export const shapeNames: Record<AvatarShape, string> = {
   drop: "Gota",
   square: "Quadrado",
   round: "Redondo",
@@ -16,7 +16,7 @@ const shapeNames: Record<AvatarShape, string> = {
   capsule: "Cápsula",
 }
 
-const colorNames: Record<(typeof avatarColors)[number], string> = {
+export const colorNames: Record<(typeof avatarColors)[number], string> = {
   "#2f80ff": "Azul",
   "#9b6bff": "Roxo",
   "#14b8a6": "Verde-água",

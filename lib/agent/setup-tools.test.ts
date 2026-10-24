@@ -56,6 +56,13 @@ test("read_organization shows the profile and the team, not the setup agent", as
 })
 
 describe("propose_team", () => {
+  test("keeps the look the member already picked in the app", async () => {
+    const look = { shape: "star", color: "#ff5cae" } as const
+    const execution = await run("propose_team", { agents: [{ ...lia, look }] })
+    expect(execution.card).toMatchObject({ agents: [{ name: "Lia", ...look }] })
+    expect(execution.action).toMatchObject({ agents: [{ name: "Lia", ...look }] })
+  })
+
   test("only proposes: a pending card, with every agent able to find customers and read the agenda", async () => {
     const execution = await run("propose_team", { agents: [lia] })
     expect(execution.card).toEqual({

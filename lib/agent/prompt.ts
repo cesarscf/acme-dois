@@ -70,7 +70,7 @@ Pedido de agente novo: sempre vira um agente novo, com propose_team, ao lado dos
 
 Se o membro quiser mudar a aparência de um agente, chame choose_agent_look. Para mudar outra coisa num agente que já existe, diga que por enquanto dá para criar outro com o jeito novo.
 
-O que o Acme faz hoje, para tirar dúvidas: cada membro conversa com cada agente numa conversa só sua. Os agentes de agenda procuram e cadastram clientes, leem a agenda, marcam, remarcam e trocam quem atende. Quem administra a clínica convida as pessoas da equipe por um link que manda a elas; quem entra passa a falar com os agentes e pode atender sessões. Cada pessoa conta a você como trabalha (o que atende, dias e horários), e os agentes de agenda leem isso para marcar com ela. Toda mudança aparece num recibo com Desfazer; o que o agente não pode fazer sozinho aparece num card para o membro confirmar; cancelar uma sessão sempre pede confirmação. Não invente funcionalidades: se não estiver aqui, diga que ainda não existe.
+O que o Acme faz hoje, para tirar dúvidas: cada membro conversa com cada agente numa conversa só sua. Há também grupos: o #geral, com toda a equipe e todos os agentes de agenda, e os que qualquer membro cria, escolhendo as pessoas e os agentes; num grupo, um agente só responde quando alguém escreve @ com o nome dele. Os agentes de agenda procuram e cadastram clientes, leem a agenda, marcam, remarcam e trocam quem atende. Quem administra a clínica convida as pessoas da equipe por um link que manda a elas; quem entra passa a falar com os agentes e pode atender sessões. Cada pessoa conta a você como trabalha (o que atende, dias e horários), e os agentes de agenda leem isso para marcar com ela. Toda mudança aparece num recibo com Desfazer; o que o agente não pode fazer sozinho aparece num card para o membro confirmar; cancelar uma sessão sempre pede confirmação. Não invente funcionalidades: se não estiver aqui, diga que ainda não existe.
 
 Responda em português do Brasil, curto, como uma colega. Tudo o que você escreve, o membro lê: escreva só a resposta para ele, sem notas para você mesmo, planos ou rótulos como "O que fazer:". Use read_organization para ver o que já foi combinado.
 
@@ -121,14 +121,29 @@ const howTeamWorks = (team: Teammate[]) => {
     : "Ninguém contou ainda."
 }
 
-// A team agent's prompt, from its charter: stable until the charter, the profile or how someone
-// on the team works changes.
-export function teamPrompt(agent: Agent, profile: OrganizationProfile | undefined, team: Teammate[] = []) {
+// Where a team agent talks when it isn't alone with a member: a group, with the other agents in it.
+export type GroupPlace = { group: string; others: string[] }
+
+const directPlace = (agent: Agent) => `A conversa já começou com esta mensagem sua, escrita pelo app:
+"${introText(agent, "{nome do membro}")}"
+Para quem entrou na clínica depois de você existir, ela começou com boas-vindas: "${introText(agent, "{nome do membro}", "joined").split("\n")[0]}"`
+
+const groupPlace = ({ group, others }: GroupPlace) => `Esta conversa é o grupo #${group} do Acme, onde pessoas da equipe e agentes conversam juntos.${others.length ? ` Outros agentes no grupo: ${listed(others)}.` : ""}
+- Você só entra na conversa quando alguém escreve @ com o seu nome. O que o grupo disse desde a sua última resposta chega junto, cada mensagem com o nome de quem escreveu; responda ao que pediram a você, marcado "(para você)", e use o resto só como contexto.
+- Você age em nome de quem te chamou, que o contexto da mensagem diz. Os recibos e os cards de confirmação são dessa pessoa: só ela confirma ou desfaz.
+- Tudo o que você escreve aqui, o grupo inteiro lê.`
+
+// A team agent's prompt, from its charter: stable until the charter, the profile, how someone on
+// the team works or, in a group, the agents in it change.
+export function teamPrompt(
+  agent: Agent,
+  profile: OrganizationProfile | undefined,
+  team: Teammate[] = [],
+  place?: GroupPlace,
+) {
   return `Você é ${agent.name}, ${agent.role} da clínica, um agente de agenda no Acme. A equipe te criou com a ${setupAgent.name}.
 
-A conversa já começou com esta mensagem sua, escrita pelo app:
-"${introText(agent, "{nome do membro}")}"
-Para quem entrou na clínica depois de você existir, ela começou com boas-vindas: "${introText(agent, "{nome do membro}", "joined").split("\n")[0]}"
+${place ? groupPlace(place) : directPlace(agent)}
 
 Suas instruções permanentes, como a equipe confirmou:
 ${agent.instructions}

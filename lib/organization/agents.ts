@@ -54,6 +54,18 @@ export async function findAgent(member: Member, id: string) {
 
 export class AgentError extends Error {}
 
+// Why an agent can't be asked for under this name, if it can't.
+export async function newAgentProblem(member: Member, name: string) {
+  if (!manages(member)) return "Só quem administra a clínica cria agentes."
+  if (!name) return "Dê um nome ao agente."
+  if (name.length > 40) return "O nome do agente pode ter até 40 letras."
+  const [taken] = await db
+    .select({ id: agent.id })
+    .from(agent)
+    .where(and(eq(agent.organizationId, member.organizationId), sql`lower(${agent.name}) = lower(${name})`))
+  return taken ? `Já existe um agente chamado ${name}.` : undefined
+}
+
 // All of them or none, so a proposal never half applies.
 export async function createAgents(member: Member, agents: ProposedAgent[]) {
   if (!manages(member)) throw new AgentError("Só quem administra a clínica cria agentes.")

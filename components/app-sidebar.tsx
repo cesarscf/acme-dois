@@ -6,6 +6,9 @@ import { usePathname } from "next/navigation"
 import { signOut } from "@/app/(auth)/actions"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { type ConversationSummary, useConversations } from "@/components/conversations"
+import { CreateMenu } from "@/components/create-menu"
+import { GroupAvatar } from "@/components/group-avatar"
+import type { GroupCandidates } from "@/components/new-group-form"
 import {
   Sidebar,
   SidebarContent,
@@ -20,15 +23,20 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-type Props = { organizationName: string; memberName: string }
+type Props = GroupCandidates & {
+  organizationName: string
+  memberName: string
+  manages: boolean
+  setupId: string
+}
 
-export function AppSidebar({ organizationName, memberName }: Props) {
+export function AppSidebar({ organizationName, memberName, manages, setupId, people, agents }: Props) {
   const pathname = usePathname()
   const { setOpenMobile } = useSidebar()
   const { conversations, working } = useConversations()
 
   const item = (conversation: ConversationSummary) => {
-    const href = `/agents/${conversation.id}`
+    const { href } = conversation
     const isActive = pathname === href
     const typing = working.has(conversation.id)
     // The open conversation is being read, even before the server hears of it.
@@ -44,7 +52,11 @@ export function AppSidebar({ organizationName, memberName }: Props) {
         >
           <span className="relative size-10 shrink-0 group-data-[collapsible=icon]:size-8">
             {/* The button sizes every svg in it as an icon. */}
-            <AgentAvatar look={conversation} size={40} className="size-full!" />
+            {conversation.kind === "group" ? (
+              <GroupAvatar looks={conversation.looks} className="size-full!" />
+            ) : (
+              <AgentAvatar look={conversation.looks[0]} size={40} className="size-full!" />
+            )}
             {unread ? (
               <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-red-500 ring-2 ring-sidebar">
                 <span className="sr-only">Mensagem nova</span>
@@ -68,12 +80,20 @@ export function AppSidebar({ organizationName, memberName }: Props) {
   }
 
   return (
-    // Collapsed to icons, the agents stay as their avatars, named in a tooltip.
+    // One list of every conversation, with agents and groups alike. Collapsed to icons, each stays as
+    // its avatar, named in a tooltip.
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <p className="truncate px-2 pt-1 text-sm font-medium group-data-[collapsible=icon]:hidden">
-          {organizationName}
-        </p>
+        <div className="flex items-center gap-2 pt-1 pl-2 group-data-[collapsible=icon]:hidden">
+          <p className="min-w-0 flex-1 truncate text-sm font-medium">{organizationName}</p>
+          <CreateMenu
+            manages={manages}
+            setupId={setupId}
+            people={people}
+            agents={agents}
+            onNavigate={() => setOpenMobile(false)}
+          />
+        </div>
       </SidebarHeader>
       <SidebarContent>
         <SidebarGroup>

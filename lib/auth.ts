@@ -5,6 +5,7 @@ import { organization } from "better-auth/plugins/organization"
 import { asc, eq } from "drizzle-orm"
 import { db } from "./db"
 import * as schema from "./db/schema"
+import { createGeneralGroup } from "./chat/groups"
 import { createSetupAgent } from "./organization/agents"
 
 export const auth = betterAuth({
@@ -33,7 +34,10 @@ export const auth = betterAuth({
       // email is verified here, so verifying it can't be the condition to accept.
       requireEmailVerificationOnInvitation: false,
       organizationHooks: {
-        afterCreateOrganization: ({ organization }) => createSetupAgent(organization.id),
+        afterCreateOrganization: async ({ organization }) => {
+          await createSetupAgent(organization.id)
+          await createGeneralGroup(organization.id)
+        },
       },
     }),
     nextCookies(),

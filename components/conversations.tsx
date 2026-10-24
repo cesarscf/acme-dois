@@ -3,9 +3,14 @@
 import { createContext, type ReactNode, use, useState } from "react"
 import type { AgentLook } from "@/lib/agent/look"
 
-export type ConversationSummary = AgentLook & {
+// A conversation in the list beside the chat: with one agent, or a group.
+export type ConversationSummary = {
   id: string
+  kind: "agent" | "group"
+  href: string
   name: string
+  // An agent's look or, for a group, those of its agents.
+  looks: AgentLook[]
   preview: string
   // "14:05", "Ontem", "Segunda"...
   when: string
@@ -14,10 +19,10 @@ export type ConversationSummary = AgentLook & {
 
 type Conversations = {
   conversations: ConversationSummary[]
-  // The agents answering the member right now, so the list shows them typing.
+  // The conversations where an agent is answering the member right now, so the list shows it typing.
   working: ReadonlySet<string>
-  // Marks the agent as working until the returned function is called.
-  startWorking: (agentId: string) => () => void
+  // Marks the conversation's agent as working until the returned function is called.
+  startWorking: (conversationId: string) => () => void
 }
 
 const ConversationsContext = createContext<Conversations | null>(null)

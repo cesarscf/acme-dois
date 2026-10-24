@@ -5,9 +5,10 @@ import { z } from "zod"
 import type { AgentChoice } from "@/lib/agent/cards"
 import { type AgentLook, avatarColors, avatarShapes } from "@/lib/agent/look"
 import { createAnthropicModel, type Model } from "@/lib/agent/model"
-import { actOnCard, markRead, sendMessage } from "@/lib/chat/conversation"
+import { actOnCard, askForNewAgent, markRead, sendMessage } from "@/lib/chat/conversation"
+import { actOnGroupCard, createGroup, findGroup, GroupError, markGroupRead, sendGroupMessage } from "@/lib/chat/groups"
 import { requireMember } from "@/lib/dal"
-import { findAgent } from "@/lib/organization/agents"
+import { AgentError, findAgent, newAgentProblem } from "@/lib/organization/agents"
 
 // One client for the server's lifetime; it holds no request state.
 let model: Model | undefined
@@ -58,4 +59,79 @@ export async function actOnCardAction(
   })
   // Confirming a team or a look changes the list beside every conversation.
   revalidatePath("/", "layout")
+}
+
+// The member writes in a group; an agent called with @ answers before this returns. Says why
+// nobody will, when the member called an agent outside the group.
+export async function sendGroupMessageAction(groupId: string, input: string): Promise<{ notice?: string }> {
+  const member = await requireMember()
+  const [group, text] = [await findGroup(member, groupId), messageText.safeParse(input)]
+  if (!group || !text.success) return {}
+  const sent = await sendGroupMessage(member, group, text.data, { model: (model ??= createAnthropicModel()) })
+  revalidatePath("/", "layout")
+  return sent
+}
+
+export async function markGroupReadAction(groupId: string, upTo: string) {
+  const member = await requireMember()
+  const [group, seen] = [await findGroup(member, groupId), z.iso.datetime().safeParse(upTo)]
+  if (!group || !seen.success) return
+  await markGroupRead(member, group, new Date(seen.data))
+  revalidatePath("/", "layout")
+}
+
+const groupCardChoice = z.object({ messageId: z.uuid(), choice: z.enum(["undo", "accept", "decline"]) })
+
+export async function actOnGroupCardAction(groupId: string, messageId: string, choice: string) {
+  const member = await requireMember()
+  const group = await findGroup(member, groupId)
+  const input = groupCardChoice.safeParse({ messageId, choice })
+  if (!group || !input.success) return
+  await actOnGroupCard(member, group, input.data.messageId, input.data.choice)
+  revalidatePath("/", "layout")
+}
+
+export type NewGroupState = { error?: string; id?: string } | undefined
+
+export async function createGroupAction(_: NewGroupState, formData: FormData): Promise<NewGroupState> {
+  const member = await requireMember()
+  const ids = (key: string) => formData.getAll(key).filter((value): value is string => typeof value === "string")
+  let created
+  try {
+    created = await createGroup(member, {
+      name: String(formData.get("name") ?? ""),
+      memberIds: ids("memberId"),
+      agentIds: ids("agentId"),
+    })
+  } catch (failure) {
+    if (failure instanceof GroupError) return { error: failure.message }
+    throw failure
+  }
+  revalidatePath("/", "layout")
+  return { id: created.id }
+}
+
+const newAgentName = z.string().trim().max(80)
+
+// Checks the name before the dialog closes, so the member can fix it there.
+export async function checkNewAgentAction(name: string): Promise<{ error?: string }> {
+  const member = await requireMember()
+  const parsed = newAgentName.safeParse(name)
+  const problem = await newAgentProblem(member, parsed.success ? parsed.data.replace(/\s+/g, " ") : "")
+  return problem ? { error: problem } : {}
+}
+
+// Asks the setup agent for the new agent, in the member's conversation with it.
+export async function askForNewAgentAction(name: string, chosen: AgentLook): Promise<{ error?: string }> {
+  const member = await requireMember()
+  const input = z.object({ name: newAgentName, look }).safeParse({ name, look: chosen })
+  if (!input.success) return { error: "Escolha um nome, uma forma e uma cor." }
+  try {
+    await askForNewAgent(member, input.data, { model: (model ??= createAnthropicModel()) })
+  } catch (failure) {
+    if (failure instanceof AgentError) return { error: failure.message }
+    throw failure
+  }
+  revalidatePath("/", "layout")
+  return {}
 }

@@ -5,7 +5,7 @@ import { listTeam } from "../agenda/team"
 import { agendaTools } from "../agent/agenda-tools"
 import type { AgentChoice, Card, CardAction, TeamCard } from "../agent/cards"
 import type { Model } from "../agent/model"
-import { type Arrival, introText, setupPrompt, teamPrompt, turnContext, welcomeText } from "../agent/prompt"
+import { type Arrival, type GroupPlace, introText, setupPrompt, teamPrompt, turnContext, welcomeText } from "../agent/prompt"
 import { type AgentReply, runTurn, unanswered } from "../agent/run-turn"
 import { setupTools } from "../agent/setup-tools"
 import { createToolRegistry, type ToolContext } from "../agent/tool-registry"
@@ -13,15 +13,16 @@ import { db } from "../db"
 import { agent as agentTable, conversationRead, message, transcriptEntry } from "../db/schema"
 import { type Member, manages, organizationTimeZone } from "../member"
 import type { AgentLook } from "../agent/look"
-import { type Agent, AgentError, agentOrder, createAgents, listAgents, updateAgentLook } from "../organization/agents"
+import { type Agent, AgentError, agentOrder, createAgents, findAgent, listAgents, newAgentProblem, updateAgentLook } from "../organization/agents"
 import { findOrganizationProfile } from "../organization/profile"
 import { notifyChanges, type Via } from "./notices"
 
 const setupRegistry = createToolRegistry(setupTools)
 
 // What an agent works with: its prompt, the tools its charter gives it, and the turn's context. What
-// its tools change on the agenda, `via` says how, is told to whoever it affects.
-async function harnessFor(member: Member, agent: Agent, now: Date, via: Via) {
+// its tools change on the agenda, `via` says how, is told to whoever it affects. `place` is the
+// group it talks in, if any.
+export async function harnessFor(member: Member, agent: Agent, now: Date, via: Via, place?: GroupPlace) {
   if (agent.kind === "setup")
     return {
       system: setupPrompt,
@@ -33,7 +34,7 @@ async function harnessFor(member: Member, agent: Agent, now: Date, via: Via) {
     listTeam(member.organizationId),
   ])
   return {
-    system: teamPrompt(agent, profile, team),
+    system: teamPrompt(agent, profile, team, place),
     tools: createToolRegistry(agendaTools.filter((tool) => agent.tools.includes(tool.name))),
     context: {
       member,
@@ -177,12 +178,13 @@ const agentMessages = (member: Member, agent: Agent, replies: AgentReply[], afte
     ...("text" in reply ? { text: reply.text } : { card: reply.card, action: reply.action }),
   }))
 
-// The member writes to an agent and the agent answers, using the tools its charter gives it.
+// The member writes to an agent and the agent answers, using the tools its charter gives it. A
+// `note` from the app goes to the agent with the member's words, and the member never sees it.
 export async function sendMessage(
   member: Member,
   agent: Agent,
   text: string,
-  { model, now = new Date() }: { model: Model; now?: Date },
+  { model, now = new Date(), note }: { model: Model; now?: Date; note?: string },
 ) {
   await db
     .insert(message)
@@ -193,7 +195,7 @@ export async function sendMessage(
     harnessFor(member, agent, now, "asked"),
   ])
   const asked: Anthropic.Beta.BetaMessageParam[] = [
-    { role: "user", content: text },
+    { role: "user", content: note ? `${text}\n\n${note}` : text },
     // Not cleared at the next user message: a tool result is one too, so the agent would lose the
     // date as soon as it read the agenda. Each turn adds its own; the prompt says to use the latest.
     { role: "system", content: turnContext({ speaker: { ...member, manages: manages(member) }, team, now, timeZone: organizationTimeZone }) },
@@ -227,7 +229,7 @@ const outcomes: Partial<Record<Card["status"], string>> = {
   chosen: "escolheu",
 }
 
-const aboutOf = (card: Card) =>
+export const aboutOf = (card: Card) =>
   card.type === "receipt"
     ? `${card.title}: ${card.detail}`
     : card.type === "look"
@@ -237,13 +239,13 @@ const aboutOf = (card: Card) =>
         : card.title
 
 // What the agent is told happened to its card, so the next turn knows.
-function noteOf(member: Member, card: Card, detail?: string) {
+export function noteOf(member: Member, card: Card, detail?: string) {
   const about = aboutOf(card)
   return `[Aviso do Acme, não escrito pelo membro] ${member.name} ${outcomes[card.status]} "${about}".${detail ? ` ${detail}` : ""}`
 }
 
 // `detail` tells the agent why nothing was done, or what was.
-type Outcome = { card: Card; detail?: string; followUps?: AgentReply[] }
+export type Outcome = { card: Card; detail?: string; followUps?: AgentReply[] }
 
 // Applies a confirmed card's action, or says why it couldn't.
 async function accept(
@@ -303,27 +305,22 @@ async function createTeam(
   }
 }
 
-// A member acts on one of an agent's cards in their own conversation with it.
-export async function actOnCard(
+export type CardSettled = { now?: Date; look?: AgentLook; team?: AgentChoice[] }
+
+// What a member's choice on one of an agent's cards does, applied; nothing when the card no longer
+// takes that choice.
+export async function decideCard(
   member: Member,
   agent: Agent,
-  messageId: string,
+  { card, action }: { card: Card; action: CardAction },
   choice: CardChoice,
-  { now = new Date(), look, team }: { now?: Date; look?: AgentLook; team?: AgentChoice[] } = {},
-) {
-  const [found] = await db
-    .select({ card: message.card, action: message.action })
-    .from(message)
-    .where(and(eq(message.id, messageId), inConversation(member, agent)))
-  const { card, action } = found ?? {}
-  if (!card || !action) return undefined
-
-  let outcome: Outcome | undefined
+  { now = new Date(), look, team }: CardSettled = {},
+): Promise<Outcome | undefined> {
   if (card.type === "receipt" && card.status === "applied" && choice === "undo" && action.kind === "undo") {
     const restored = await applyRestores(member, action.restores)
     if (restored !== "stale")
       await notifyChanges({ actor: member, agentId: agent.id, via: "undone", now }, changesOfRestores(restored))
-    outcome = { card: { ...card, status: restored === "stale" ? "stale" : "undone" } }
+    return { card: { ...card, status: restored === "stale" ? "stale" : "undone" } }
   }
   if (card.type === "approval" && card.status === "pending") {
     const decided =
@@ -332,19 +329,39 @@ export async function actOnCard(
         : choice === "accept"
           ? await accept(member, agent, action, now)
           : undefined
-    if (decided) outcome = { ...decided, card: { ...card, status: decided.status } as Card }
+    if (decided) return { ...decided, card: { ...card, status: decided.status } as Card }
   }
   if (card.type === "team" && card.status === "pending" && action.kind === "create_agents") {
-    if (choice === "decline") outcome = { card: { ...card, status: "declined" } }
-    if (choice === "accept") outcome = await createTeam(member, card, action, team)
+    if (choice === "decline") return { card: { ...card, status: "declined" } }
+    if (choice === "accept") return createTeam(member, card, action, team)
   }
   if (card.type === "look" && card.status === "pending" && choice === "choose" && look && action.kind === "look") {
     if (await updateAgentLook(member, action.agentId, look))
-      outcome = { card: { ...card, look, status: "chosen" }, detail: `Forma ${look.shape}, cor ${look.color}.` }
+      return { card: { ...card, look, status: "chosen" }, detail: `Forma ${look.shape}, cor ${look.color}.` }
   }
+  return undefined
+}
+
+// A member acts on one of an agent's cards in their own conversation with it.
+export async function actOnCard(
+  member: Member,
+  agent: Agent,
+  messageId: string,
+  choice: CardChoice,
+  settled: CardSettled = {},
+) {
+  const [found] = await db
+    .select({ card: message.card, action: message.action })
+    .from(message)
+    .where(and(eq(message.id, messageId), inConversation(member, agent)))
+  const { card, action } = found ?? {}
+  if (!card || !action) return undefined
+
+  const outcome = await decideCard(member, agent, { card, action }, choice, settled)
   if (!outcome) return card
 
   const updated = outcome.card
+  const now = settled.now ?? new Date()
   await db.transaction(async (tx) => {
     await tx.update(message).set({ card: updated }).where(eq(message.id, messageId))
     await tx.insert(transcriptEntry).values({
@@ -356,4 +373,23 @@ export async function actOnCard(
       await tx.insert(message).values(agentMessages(member, agent, outcome.followUps, now))
   })
   return updated
+}
+
+// Who runs the organization asks for a new agent from the app, with its name and look already
+// chosen: the setup agent hears it in their conversation and asks what the agent will do.
+export async function askForNewAgent(
+  member: Member,
+  input: { name: string; look: AgentLook },
+  { model, now = new Date() }: { model: Model; now?: Date },
+) {
+  const name = input.name.trim().replace(/\s+/g, " ")
+  const problem = await newAgentProblem(member, name)
+  if (problem) throw new AgentError(problem)
+  const [setup] = await listAgents(member)
+  await sendMessage(member, (await findAgent(member, setup.id))!, `Quero criar um agente novo: ${name}.`, {
+    model,
+    now,
+    note: `[Aviso do Acme, não escrito pelo membro] O membro pediu pelo botão Novo agente e já escolheu o nome e a aparência: nome "${name}", look { shape: "${input.look.shape}", color: "${input.look.color}" }. Pergunte o que esse agente vai fazer, se ele ainda não disse, e proponha com propose_team usando exatamente esse nome e esse look.`,
+  })
+  return setup.id
 }

@@ -9,7 +9,7 @@ import { unanswered } from "../agent/run-turn"
 import type { Member } from "../member"
 import { type Agent, createAgents, findAgent, listAgents } from "../organization/agents"
 import { saveMemberProfile, saveOrganizationProfile } from "../organization/profile"
-import { actOnCard, listConversations, listMessages, markRead, sendMessage } from "./conversation"
+import { actOnCard, askForNewAgent, listConversations, listMessages, markRead, sendMessage } from "./conversation"
 import { noticeNote } from "./notices"
 
 // Friday 2026-10-23, 09:00 in São Paulo.
@@ -210,6 +210,33 @@ describe("the setup agent", () => {
       content:
         '[Aviso do Acme, não escrito pelo membro] Ana tentou aplicar, mas nada foi feito em "Criar este agente?". Motivo: Já existe um agente com um desses nomes.',
     })
+  })
+})
+
+describe("asking for a new agent from the app", () => {
+  const look = { shape: "star", color: "#ff5cae" } as const
+
+  test("tells the setup agent the name and look picked, and the member sees only their request", async () => {
+    const { model, requests } = scriptedModel(says("Que bom! O que a Nina vai fazer?"))
+    expect(await askForNewAgent(ana, { name: " Nina ", look }, { model, now })).toBe(setup.id)
+    expect((await shown(ana, setup)).slice(1)).toEqual([
+      { author: "member", text: "Quero criar um agente novo: Nina.", card: null },
+      { author: "agent", text: "Que bom! O que a Nina vai fazer?", card: null },
+    ])
+    expect(requests[0].messages.at(-2)?.content).toBe(
+      'Quero criar um agente novo: Nina.\n\n[Aviso do Acme, não escrito pelo membro] O membro pediu pelo botão Novo agente e já escolheu o nome e a aparência: nome "Nina", look { shape: "star", color: "#ff5cae" }. Pergunte o que esse agente vai fazer, se ele ainda não disse, e proponha com propose_team usando exatamente esse nome e esse look.',
+    )
+  })
+
+  test("is turned down for a name in use, or for whoever doesn't run the organization", async () => {
+    await teamAgent()
+    expect(askForNewAgent(ana, { name: "lia", look }, { model: scriptedModel().model, now })).rejects.toThrow(
+      "Já existe um agente chamado lia.",
+    )
+    const joana = await joinOrganization(ana.organizationId, "Joana")
+    expect(askForNewAgent(joana, { name: "Nina", look }, { model: scriptedModel().model, now })).rejects.toThrow(
+      "Só quem administra a clínica cria agentes.",
+    )
   })
 })
 

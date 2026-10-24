@@ -34,6 +34,18 @@ Toda organization nasce com a **Acme Bot**, a agente de configuração (hook `af
 
 Cada agente criado trabalha pela sua ficha. Ferramentas fora da ficha não chegam ao modelo, e quem tenta usá-las recebe uma recusa. O que ele não faz sozinho vira um card **Confirmar**, e só depois da confirmação a ação é aplicada, com recibo e Desfazer. Cancelar sempre pede confirmação, e nenhum agente pode ganhar autonomia para isso.
 
+## Novo agente
+
+Quem administra a clínica também cria agentes pelo **+** (Novo agente): escolhe o nome, a forma e a cor num diálogo, e a Acme Bot continua na conversa com ele, perguntando o que o agente vai fazer. A proposta chega no card de sempre, já com esse nome e essa aparência, e o agente só existe depois da confirmação.
+
+## Grupos
+
+Além da conversa de cada membro com cada agente, a equipe conversa em grupos. O **#geral** nasce com a clínica e tem sempre toda a equipe e todos os agentes de agenda, inclusive quem chega depois. Qualquer membro cria outros grupos pelo **+** no topo da lista (Novo grupo), escolhendo as pessoas e os agentes; quem cria sempre está nele, e só quem está vê o grupo.
+
+- **Um agente só responde quando é chamado com @nome.** Sem menção, é conversa entre pessoas. Se várias pessoas chamam, responde o primeiro agente do grupo mencionado; chamar um agente de fora do grupo (ou a Acme Bot) avisa quem escreveu que ele não vai ver.
+- O agente age **em nome de quem o chamou**: recibos e cards de confirmação ficam visíveis para todo o grupo, mas só essa pessoa confirma, recusa ou desfaz.
+- Cada agente tem uma **transcrição por grupo**, separada das conversas diretas. A cada chamada ele lê o que o grupo disse desde a última resposta dele, com o nome de quem escreveu e "(para você)" no que deve responder. Um turno por vez por agente e grupo (advisory lock no Postgres).
+
 ## Como funciona
 
 ```
@@ -43,6 +55,10 @@ app/actions.ts                     Server Actions: enviar mensagem, agir num car
 lib/dal.ts                         sessão + membro da organization ativa (server-only)
 lib/chat/conversation.ts           mensagens e transcrição por membro e agente; aplica os cards
 lib/chat/notices.ts                avisos de mudança na agenda para quem atende
+lib/chat/groups.ts                 grupos: quem está em cada um, mensagens, o turno do agente chamado e os cards
+lib/chat/mentions.ts               quem foi chamado com @ numa mensagem
+app/(chat)/groups/[groupId]        um grupo → components/group-chat.tsx
+components/create-menu.tsx         o + da lista: Novo agente e Novo grupo, cada um num diálogo
 lib/agent/run-turn.ts              loop: modelo → ferramentas → modelo, até terminar
 lib/agent/tool-registry.ts         valida entradas (zod) e troca por um card de confirmação o que o agente não faz sozinho
 lib/agent/agenda-tools.ts          ferramentas dos agentes de agenda
@@ -64,4 +80,4 @@ Ferramentas de agenda: `find_customers`, `create_customer`, `read_agenda`, `crea
 
 ## O que ficou de fora do `acme`
 
-Só a agenda, via chat. Sem tela de agenda, grupos, delegação entre agentes, edição de um agente já criado, rotinas, mensagens preparadas, evoluções, orçamento de IA, push, login por telefone nem pseudônimos de clientes (aqui o modelo vê o nome da cliente).
+Só a agenda, via chat. Sem tela de agenda, roteamento automático em grupos (sem @, ninguém responde), delegação entre agentes, edição de um agente já criado, rotinas, mensagens preparadas, evoluções, orçamento de IA, push, login por telefone nem pseudônimos de clientes (aqui o modelo vê o nome da cliente).

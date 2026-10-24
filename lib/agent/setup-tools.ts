@@ -6,7 +6,7 @@ import { findOrganizationProfile, saveMemberProfile, saveOrganizationProfile } f
 import { listTeam } from "../agenda/team"
 import { agendaTools, baseAgendaTools } from "./agenda-tools"
 import type { ProposedAgent, TeamCard } from "./cards"
-import { type AgentLook, nextLook } from "./look"
+import { type AgentLook, avatarColors, avatarShapes, nextLook } from "./look"
 import { defineTool, ToolRefusal } from "./tool-registry"
 
 // The setup agent's tools: it learns how the organization works and proposes the team of agenda
@@ -125,6 +125,10 @@ const proposedAgent = z.object({
   acts_alone: z
     .array(z.enum(toolNames))
     .describe("Das ferramentas que mudam a agenda, as que ele usa sem perguntar antes."),
+  look: z
+    .object({ shape: z.enum(avatarShapes), color: z.enum(avatarColors) })
+    .optional()
+    .describe("A aparência que o membro já escolheu no app, exatamente como o aviso disse. Sem isso, o app escolhe uma."),
 })
 
 export const proposeTeamTool = defineTool({
@@ -150,8 +154,8 @@ export const proposeTeamTool = defineTool({
       const missing = agent.acts_alone.filter((tool) => !tools.includes(tool))
       if (missing.length)
         throw new ToolRefusal(`${called} age sozinho em ${missing.join(", ")} sem ter a ferramenta.`)
-      // A look the team isn't using, for the member to keep or change in the card.
-      const look = nextLook(looks)
+      // The look the member picked, or one the team isn't using, to keep or change in the card.
+      const look = agent.look ?? nextLook(looks)
       looks.push(look)
       return {
         // Empty until the member names it in the card.
