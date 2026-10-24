@@ -107,7 +107,11 @@ export const agent = pgTable(
     // The tools it may use, and those of them it uses without asking a member first.
     tools: text("tools").array().notNull(),
     actsAlone: text("acts_alone").array().notNull(),
-    createdAt,
+    // Set here, not by now(): it is compared with when members joined, which Better Auth sets in
+    // JS, and the database's clock may differ from the app's.
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .$defaultFn(() => new Date()),
   },
   (table) => [
     uniqueIndex("agent_setup_idx").on(table.organizationId).where(sql`${table.kind} = 'setup'`),

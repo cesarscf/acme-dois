@@ -29,6 +29,13 @@
       "when": 1792806606179,
       "tag": "0003_more_avatar_shapes",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792810704617,
+      "tag": "0004_agent_created_at",
+      "breakpoints": true
     }
   ]
 }

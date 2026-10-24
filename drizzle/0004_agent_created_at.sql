@@ -1,0 +1,1 @@
+ALTER TABLE "agent" ALTER COLUMN "created_at" DROP DEFAULT;

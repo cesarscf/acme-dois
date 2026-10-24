@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, spyOn, test } from "bun:test"
-import { createOrganization, resetDatabase } from "@/test/fixtures"
+import { createOrganization, joinOrganization, resetDatabase } from "@/test/fixtures"
 import { scriptedModel, says, uses } from "@/test/scripted-model"
 import { createAppointment, findAppointment, listAppointments } from "../agenda/appointments"
 import { createCustomer } from "../agenda/customers"
@@ -214,6 +214,23 @@ describe("a team agent", () => {
         "Pra começar, me pergunte: “Quem eu atendo amanhã?”",
       ].join("\n"),
     )
+  })
+
+  test("welcomes someone who joined after it existed, in every conversation", async () => {
+    const tati = await teamAgent({ tools: ["read_agenda", "create_appointment"], actsAlone: [] })
+    const joana = await joinOrganization(ana.organizationId, "Joana", new Date(Date.now() + 60_000))
+
+    const [intro] = await shown(joana, tati)
+    expect(intro.text).toBe(introText(tati, "Joana", "joined"))
+    expect(intro.text?.split("\n")[0]).toBe("Oi, Joana! Que bom ter você na equipe. Eu sou Lia, Secretária da agenda.")
+    expect(intro.text).not.toContain("Acabei de chegar")
+
+    const [welcome] = await shown(joana, setup)
+    expect(welcome.text).toBe(welcomeText("Joana", "joined"))
+    expect(welcome.text).toContain("Os agentes da equipe já estão na lista ao lado")
+
+    // Ana was there before the agent, so it introduces itself to her as new.
+    expect((await shown(ana, tati))[0].text).toContain("Acabei de chegar na equipe.")
   })
 
   test("an agent that only reads says so in its introduction", async () => {

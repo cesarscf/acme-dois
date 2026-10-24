@@ -22,8 +22,16 @@ export async function createOrganization(...names: string[]): Promise<Member[]> 
       const id = crypto.randomUUID()
       await db.insert(user).values({ id: userId, name, email: `${userId}@example.com`, createdAt: now, updatedAt: now })
       await db.insert(member).values({ id, organizationId, userId, role: "owner", createdAt: now })
-      return { id, organizationId, userId, name }
+      return { id, organizationId, userId, name, joinedAt: now }
     }),
   )
 }
 
+// Someone who joins an existing organization at `joinedAt`, as accepting an invite does.
+export async function joinOrganization(organizationId: string, name: string, joinedAt = new Date()): Promise<Member> {
+  const userId = crypto.randomUUID()
+  const id = crypto.randomUUID()
+  await db.insert(user).values({ id: userId, name, email: `${userId}@example.com`, createdAt: joinedAt, updatedAt: joinedAt })
+  await db.insert(member).values({ id, organizationId, userId, role: "member", createdAt: joinedAt })
+  return { id, organizationId, userId, name, joinedAt }
+}

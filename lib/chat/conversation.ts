@@ -5,7 +5,7 @@ import { listTeam } from "../agenda/team"
 import { agendaTools } from "../agent/agenda-tools"
 import type { AgentChoice, Card, CardAction, TeamCard } from "../agent/cards"
 import type { Model } from "../agent/model"
-import { introText, setupPrompt, teamPrompt, turnContext, welcomeText } from "../agent/prompt"
+import { type Arrival, introText, setupPrompt, teamPrompt, turnContext, welcomeText } from "../agent/prompt"
 import { type AgentReply, runTurn, unanswered } from "../agent/run-turn"
 import { setupTools } from "../agent/setup-tools"
 import { createToolRegistry, type ToolContext } from "../agent/tool-registry"
@@ -58,10 +58,11 @@ export async function listMessages(member: Member, agent: Agent) {
     .from(message)
     .where(inConversation(member, agent))
     .orderBy(asc(message.createdAt))
+  const arrival: Arrival = member.joinedAt > agent.createdAt ? "joined" : "before"
   const first = {
     id: `first-${agent.id}`,
     author: "agent" as const,
-    text: agent.kind === "setup" ? welcomeText(member.name) : introText(agent, member.name),
+    text: agent.kind === "setup" ? welcomeText(member.name, arrival) : introText(agent, member.name, arrival),
     card: null,
     createdAt: agent.createdAt,
   }

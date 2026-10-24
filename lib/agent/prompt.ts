@@ -4,9 +4,17 @@ import type { OrganizationProfile } from "../organization/profile"
 import { dayIn, timeIn } from "../time"
 import { agendaTools, cancelAppointmentTool } from "./agenda-tools"
 
+// Who reads an agent's first message: someone there before the agent existed, or someone who joined
+// the organization after it, whom the agent welcomes.
+export type Arrival = "before" | "joined"
+
 // Written by the app, not the model: it opens the setup agent's conversation with each member.
-export const welcomeText = (memberName: string) =>
-  `Oi, ${memberName}! Eu sou a ${setupAgent.name}. Vou te ajudar a montar a equipe de agentes que vai cuidar da agenda da clínica, do jeito que vocês trabalham.
+export const welcomeText = (memberName: string, arrival: Arrival = "before") =>
+  arrival === "joined"
+    ? `Oi, ${memberName}! Que bom ter você na equipe. Eu sou a ${setupAgent.name}, quem monta os agentes de IA que cuidam da agenda da clínica.
+
+Os agentes da equipe já estão na lista ao lado: é só abrir a conversa com cada um. Se quiser um agente novo ou tiver alguma dúvida sobre o Acme, é comigo.`
+    : `Oi, ${memberName}! Eu sou a ${setupAgent.name}. Vou te ajudar a montar a equipe de agentes que vai cuidar da agenda da clínica, do jeito que vocês trabalham.
 
 Pra começar: que tipo de atendimento vocês fazem, e quem faz parte da equipe?`
 
@@ -15,6 +23,9 @@ export const setupPrompt = `Você é a ${setupAgent.name}, a agente de configura
 
 A conversa já começou com esta mensagem sua, escrita pelo app:
 "${welcomeText("{nome do membro}")}"
+Para quem entrou na clínica depois, por convite, ela foi esta:
+"${welcomeText("{nome do membro}", "joined")}"
+Com quem entrou depois, a equipe e o perfil da clínica já podem estar prontos: veja com read_organization antes de perguntar o que já foi combinado.
 
 Como montar a equipe:
 1. Entenda a clínica, uma pergunta por vez, no máximo cinco, pulando o que o membro já contou: os serviços e especialidades; quem atende e quem cuida da agenda; a duração usual das sessões e os horários; o que mais toma tempo na agenda (marcar, remarcar, trocar quem atende, cancelamentos); e o quanto o time quer que os agentes façam sozinhos.
@@ -52,7 +63,7 @@ type Charter = Pick<Agent, "name" | "role" | "tools" | "actsAlone">
 
 // Written by the app from the charter, not the model: it opens each member's conversation with a
 // team agent as soon as the agent exists.
-export function introText(agent: Charter, memberName: string) {
+export function introText(agent: Charter, memberName: string, arrival: Arrival = "before") {
   const changes = agendaTools.filter((tool) => tool.confirm && agent.tools.includes(tool.name))
   const named = (alone: boolean) =>
     changes
@@ -61,7 +72,9 @@ export function introText(agent: Charter, memberName: string) {
   const [alone, asks] = [named(true), named(false)]
   const cancels = agent.tools.includes(cancelAppointmentTool.name)
   return [
-    `Oi, ${memberName}! Eu sou ${agent.name}, ${agent.role}. Acabei de chegar na equipe.`,
+    arrival === "joined"
+      ? `Oi, ${memberName}! Que bom ter você na equipe. Eu sou ${agent.name}, ${agent.role}.`
+      : `Oi, ${memberName}! Eu sou ${agent.name}, ${agent.role}. Acabei de chegar na equipe.`,
     alone.length ? `Faço sem te perguntar: ${listed(alone)}.` : null,
     asks.length ? `Te pergunto antes de ${listed(asks)}.` : null,
     cancels ? "Cancelar uma sessão, só com a sua confirmação." : null,
@@ -79,6 +92,7 @@ export function teamPrompt(agent: Agent, profile: OrganizationProfile | undefine
 
 A conversa já começou com esta mensagem sua, escrita pelo app:
 "${introText(agent, "{nome do membro}")}"
+Para quem entrou na clínica depois de você existir, ela começou com boas-vindas: "${introText(agent, "{nome do membro}", "joined").split("\n")[0]}"
 
 Suas instruções permanentes, como a equipe confirmou:
 ${agent.instructions}

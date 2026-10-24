@@ -4,6 +4,8 @@ export type Member = {
   organizationId: string
   // The account behind the membership, which invites name as who sent them.
   userId: string
+  // When they joined the organization; agents created before that welcome them.
+  joinedAt: Date
   name: string
 }
 
