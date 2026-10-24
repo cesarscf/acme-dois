@@ -1,5 +1,14 @@
 import { z } from "zod"
-import { listAgents, findAgent } from "../organization/agents"
+import { findAgent, listAgents, updateAgentProfile } from "../organization/agents"
+import {
+  changeGroup,
+  createGroup,
+  findGroup,
+  type Group,
+  type GroupState,
+  listGroups,
+  mayManage,
+} from "../organization/groups"
 import { createInvite, listPendingInvites } from "../organization/invites"
 import { type Member, manages } from "../member"
 import { findOrganizationProfile, saveMemberProfile, saveOrganizationProfile } from "../organization/profile"
@@ -10,7 +19,9 @@ import { type AgentLook, avatarColors, avatarShapes, nextLook } from "./look"
 import { defineTool, ToolRefusal } from "./tool-registry"
 
 // The setup agent's tools: it learns how the organization works and proposes the team of agenda
-// agents that fits it. Creating agents always waits for a member's confirmation.
+// agents that fits it, and does for the member what the app's screens do to groups and agents.
+// Creating agents always waits for a member's confirmation; any other change comes back in a
+// receipt with Undo.
 
 const toolNames = agendaTools.map((tool) => tool.name) as [string, ...string[]]
 const confirmable = new Set(agendaTools.filter((tool) => tool.confirm).map((tool) => tool.name))
@@ -69,14 +80,15 @@ export const readOrganizationTool = defineTool({
   name: "read_organization",
   label: "Ver a equipe de agentes",
   description:
-    "Lê o que já está combinado: como a clínica trabalha; as pessoas da equipe, quem administra e como cada uma trabalha; os convites pendentes; e os agentes, com função, ferramentas e o que fazem sozinhos.",
+    "Lê o que já está combinado: como a clínica trabalha; as pessoas da equipe (com member_id), quem administra e como cada uma trabalha; os convites pendentes; os agentes, com função, ferramentas e o que fazem sozinhos; e os grupos do membro, com quem está em cada um e se ele pode mudá-los.",
   input: z.object({}),
   async run(_, { member }) {
-    const [profile, agents, people, invites] = await Promise.all([
+    const [profile, agents, people, invites, groups] = await Promise.all([
       findOrganizationProfile(member.organizationId),
       listAgents(member),
       listTeam(member.organizationId),
       listPendingInvites(member),
+      listGroups(member).then((rows) => Promise.all(rows.map((row) => findGroup(member, row.id)))),
     ])
     const team = await Promise.all(
       agents.filter((agent) => agent.kind === "team").map((agent) => findAgent(member, agent.id)),
@@ -84,7 +96,12 @@ export const readOrganizationTool = defineTool({
     return {
       output: {
         profile: profile ?? null,
-        people: people.map((person) => ({ name: person.name, manages: person.manages, about: person.about })),
+        people: people.map((person) => ({
+          member_id: person.id,
+          name: person.name,
+          manages: person.manages,
+          about: person.about,
+        })),
         pending_invites: invites.map((invite) => invite.email),
         agents: team.flatMap((agent) =>
           agent
@@ -95,6 +112,20 @@ export const readOrganizationTool = defineTool({
                   role: agent.role,
                   tools: agent.tools,
                   acts_alone: agent.actsAlone,
+                },
+              ]
+            : [],
+        ),
+        groups: groups.flatMap((group) =>
+          group
+            ? [
+                {
+                  id: group.id,
+                  name: group.name,
+                  general: group.general,
+                  people: group.members.map((person) => person.name),
+                  agents: group.agents.map((agent) => agent.name),
+                  you_can_change: mayManage(member, group),
                 },
               ]
             : [],
@@ -268,6 +299,114 @@ export const saveMyProfileTool = defineTool({
   },
 })
 
+// "Ana, Bia e Lia", or "ninguém".
+const listed = (names: string[]) =>
+  names.length === 0 ? "ninguém" : names.length === 1 ? names[0] : `${names.slice(0, -1).join(", ")} e ${names.at(-1)}`
+
+const memberIds = (what: string) => z.array(z.string().min(1).max(64)).max(30).describe(what)
+const agentIds = (what: string) => z.array(z.uuid()).max(30).describe(what)
+
+const whoIsIn = (group: Group) =>
+  `Pessoas: ${listed(group.members.map((person) => person.name))}. Agentes: ${listed(group.agents.map((agent) => agent.name))}.`
+
+export const createGroupTool = defineTool({
+  name: "create_group",
+  label: "Criar grupos",
+  description:
+    "Cria um grupo de conversa com as pessoas e os agentes de agenda que o membro pedir (os ids vêm de read_organization); quem pede sempre entra. Num grupo, um agente só responde quando alguém escreve @ com o nome dele. Mostra o grupo num recibo com Desfazer.",
+  input: z.object({
+    name: z.string().trim().min(1).max(40).describe("O nome do grupo, como Recepção."),
+    member_ids: memberIds("As pessoas da equipe, além de quem pede."),
+    agent_ids: agentIds("Os agentes de agenda."),
+  }),
+  async run({ name, member_ids, agent_ids }, { member }) {
+    const created = await createGroup(member, { name, memberIds: member_ids, agentIds: agent_ids })
+    const group = (await findGroup(member, created.id))!
+    return {
+      output: { group_id: group.id, note: "Mostrei ao membro num recibo com Desfazer. O grupo já aparece na lista ao lado." },
+      card: { type: "receipt", title: `Grupo ${group.name} criado`, detail: whoIsIn(group), status: "applied", undoable: true },
+      action: { kind: "delete_group", groupId: group.id },
+    }
+  },
+})
+
+// What changed in a group, in words: its new name, who came in and who left.
+function changeText(from: GroupState, to: GroupState, names: Map<string, string>) {
+  const named = (list: string[]) => listed(list.map((id) => names.get(id) ?? "alguém"))
+  const came = (before: string[], after: string[]) => after.filter((id) => !before.includes(id))
+  const lines = [
+    from.name !== to.name ? `Agora se chama ${to.name}.` : null,
+    came(from.memberIds, to.memberIds).length ? `Entrou: ${named(came(from.memberIds, to.memberIds))}.` : null,
+    came(to.memberIds, from.memberIds).length ? `Saiu: ${named(came(to.memberIds, from.memberIds))}.` : null,
+    came(from.agentIds, to.agentIds).length ? `Agente que entrou: ${named(came(from.agentIds, to.agentIds))}.` : null,
+    came(to.agentIds, from.agentIds).length ? `Agente que saiu: ${named(came(to.agentIds, from.agentIds))}.` : null,
+  ]
+  return lines.filter(Boolean).join(" ") || "Nada mudou."
+}
+
+export const changeGroupTool = defineTool({
+  name: "change_group",
+  label: "Mudar grupos",
+  description:
+    "Muda um grupo do membro (o id vem de read_organization): o nome, e quem entra ou sai, pessoas e agentes de agenda. Só quem criou o grupo ou administra a clínica muda um grupo, e o geral fica como está, sempre com todos. Mostra a mudança num recibo com Desfazer.",
+  input: z.object({
+    group_id: z.uuid(),
+    name: z.string().trim().min(1).max(40).nullable().describe("O nome novo, ou null para manter."),
+    add_member_ids: memberIds("Pessoas que entram."),
+    remove_member_ids: memberIds("Pessoas que saem."),
+    add_agent_ids: agentIds("Agentes que entram."),
+    remove_agent_ids: agentIds("Agentes que saem."),
+  }),
+  async run(input, { member }) {
+    const group = await findGroup(member, input.group_id)
+    if (!group) throw new ToolRefusal("Esse grupo não existe, ou o membro não está nele.")
+    const { from, to } = await changeGroup(member, group, {
+      ...(input.name && { name: input.name }),
+      addMemberIds: input.add_member_ids,
+      removeMemberIds: input.remove_member_ids,
+      addAgentIds: input.add_agent_ids,
+      removeAgentIds: input.remove_agent_ids,
+    })
+    const [team, agents] = await Promise.all([listTeam(member.organizationId), listAgents(member)])
+    const names = new Map([...team, ...agents].map((who) => [who.id, who.name]))
+    return {
+      output: "Mudei. Mostrei ao membro num recibo com Desfazer.",
+      card: { type: "receipt", title: `Grupo ${to.name}`, detail: changeText(from, to, names), status: "applied", undoable: true },
+      action: { kind: "restore_group", groupId: group.id, from, to },
+    }
+  },
+})
+
+export const changeAgentTool = defineTool({
+  name: "change_agent",
+  label: "Mudar o nome ou o cargo de um agente",
+  description:
+    "Muda o nome ou o cargo de um agente de agenda (o id vem de read_organization). O que ele faz não muda por aqui. Mostra a mudança num recibo com Desfazer.",
+  input: z.object({
+    agent_id: z.uuid(),
+    name: z.string().trim().min(1).max(40).nullable().describe("O nome novo, ou null para manter."),
+    role: z.string().trim().min(1).max(80).nullable().describe("O cargo novo, ou null para manter."),
+  }),
+  async run({ agent_id, name, role }, { member }) {
+    await requireManager(member, "muda os agentes")
+    const { from, to } = await updateAgentProfile(member, agent_id, {
+      ...(name && { name }),
+      ...(role && { role }),
+    })
+    const detail = [
+      from.name !== to.name ? `Nome: ${from.name} → ${to.name}.` : null,
+      from.role !== to.role ? `Cargo: ${from.role} → ${to.role}.` : null,
+    ]
+      .filter(Boolean)
+      .join(" ")
+    return {
+      output: "Mudei. Mostrei ao membro num recibo com Desfazer.",
+      card: { type: "receipt", title: `Agente ${to.name}`, detail: detail || "Nada mudou.", status: "applied", undoable: true },
+      action: { kind: "restore_agent", agentId: agent_id, from, to },
+    }
+  },
+})
+
 export const setupTools = [
   saveOrganizationProfileTool,
   readOrganizationTool,
@@ -275,4 +414,7 @@ export const setupTools = [
   chooseAgentLookTool,
   inviteMemberTool,
   saveMyProfileTool,
+  createGroupTool,
+  changeGroupTool,
+  changeAgentTool,
 ]

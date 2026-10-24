@@ -11,6 +11,7 @@ import {
   listAgents,
   setupAgent,
   updateAgentLook,
+  restoreAgentProfile,
   updateAgentProfile,
 } from "./agents"
 
@@ -91,10 +92,8 @@ test("only who runs the organization creates agents or changes their look", asyn
 describe("updateAgentProfile", () => {
   test("renames a team agent and changes its role, trimmed", async () => {
     const [created] = await createAgents(ana, [lia])
-    expect(await updateAgentProfile(ana, created.id, { name: "  Nina  Souza ", role: "Recepção" })).toEqual({
-      name: "Nina Souza",
-      role: "Recepção",
-    })
+    const change = await updateAgentProfile(ana, created.id, { name: "  Nina  Souza ", role: "Recepção" })
+    expect(change).toEqual({ from: { name: "Lia", role: "Secretária" }, to: { name: "Nina Souza", role: "Recepção" } })
     expect(await findAgent(ana, created.id)).toMatchObject({ name: "Nina Souza", role: "Recepção" })
   })
 
@@ -107,5 +106,15 @@ describe("updateAgentProfile", () => {
     const joana = await joinOrganization(ana.organizationId, "Joana")
     expect(updateAgentProfile(joana, created.id, { role: "Outra" })).rejects.toThrow(AgentError)
     expect(await findAgent(ana, created.id)).toMatchObject({ name: "Lia", role: "Secretária" })
+  })
+})
+
+describe("restoreAgentProfile", () => {
+  test("puts the name and role back while they are as the change left them", async () => {
+    const [created] = await createAgents(ana, [lia])
+    const change = await updateAgentProfile(ana, created.id, { name: "Nina" })
+    expect(await restoreAgentProfile(ana, created.id, change)).toBe("restored")
+    expect(await findAgent(ana, created.id)).toMatchObject({ name: "Lia" })
+    expect(await restoreAgentProfile(ana, created.id, change)).toBe("stale")
   })
 })

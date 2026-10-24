@@ -13,7 +13,18 @@ import { db } from "../db"
 import { agent as agentTable, conversationRead, message, transcriptEntry } from "../db/schema"
 import { type Member, manages, organizationTimeZone } from "../member"
 import type { AgentLook } from "../agent/look"
-import { type Agent, AgentError, agentOrder, createAgents, findAgent, listAgents, newAgentProblem, updateAgentLook } from "../organization/agents"
+import {
+  type Agent,
+  AgentError,
+  agentOrder,
+  createAgents,
+  findAgent,
+  listAgents,
+  newAgentProblem,
+  restoreAgentProfile,
+  updateAgentLook,
+} from "../organization/agents"
+import { deleteNewGroup, restoreGroup } from "../organization/groups"
 import { findOrganizationProfile } from "../organization/profile"
 import { notifyChanges, type Via } from "./notices"
 
@@ -321,6 +332,17 @@ export async function decideCard(
     if (restored !== "stale")
       await notifyChanges({ actor: member, agentId: agent.id, via: "undone", now }, changesOfRestores(restored))
     return { card: { ...card, status: restored === "stale" ? "stale" : "undone" } }
+  }
+  if (card.type === "receipt" && card.status === "applied" && choice === "undo") {
+    const undone =
+      action.kind === "restore_group"
+        ? await restoreGroup(member, action.groupId, action)
+        : action.kind === "delete_group"
+          ? await deleteNewGroup(member, action.groupId)
+          : action.kind === "restore_agent"
+            ? await restoreAgentProfile(member, action.agentId, action)
+            : undefined
+    if (undone) return { card: { ...card, status: undone === "stale" ? "stale" : "undone" } }
   }
   if (card.type === "approval" && card.status === "pending") {
     const decided =

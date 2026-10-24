@@ -98,25 +98,47 @@ export async function updateAgentLook(member: Member, id: string, look: AgentLoo
   return Boolean(updated)
 }
 
-// Who runs the organization renames a team agent or changes its role. The setup agent keeps its
-// own: the app names it in what it writes.
+export type AgentProfileState = { name: string; role: string }
+
+const nameTaken = (failure: unknown, name: string) =>
+  (failure as { cause?: { code?: string } }).cause?.code === "23505"
+    ? new AgentError(`Já existe um agente chamado ${name}.`)
+    : failure
+
+// Who runs the organization renames a team agent or changes its role, and hears how it was and
+// how it is now, so the change can be undone. The setup agent keeps its own: the app names it in
+// what it writes.
 export async function updateAgentProfile(member: Member, id: string, change: { name?: string; role?: string }) {
   if (!manages(member)) throw new AgentError("Só quem administra a clínica muda um agente.")
   const name = change.name?.trim().replace(/\s+/g, " ")
   const role = change.role?.trim().replace(/\s+/g, " ")
   if (name !== undefined && (!name || name.length > 40)) throw new AgentError("O nome do agente tem de 1 a 40 letras.")
   if (role !== undefined && (!role || role.length > 80)) throw new AgentError("O cargo do agente tem de 1 a 80 letras.")
+  const found = await findAgent(member, id)
+  if (!found || found.kind !== "team") throw new AgentError("Esse agente não pode ser mudado.")
+  const from: AgentProfileState = { name: found.name, role: found.role }
+  const to: AgentProfileState = { name: name ?? from.name, role: role ?? from.role }
   try {
-    const [updated] = await db
-      .update(agent)
-      .set({ ...(name !== undefined && { name }), ...(role !== undefined && { role }) })
-      .where(and(eq(agent.id, id), eq(agent.organizationId, member.organizationId), eq(agent.kind, "team")))
-      .returning({ name: agent.name, role: agent.role })
-    if (!updated) throw new AgentError("Esse agente não pode ser mudado.")
-    return updated
+    await db.update(agent).set(to).where(eq(agent.id, id))
   } catch (failure) {
-    if ((failure as { cause?: { code?: string } }).cause?.code === "23505")
-      throw new AgentError(`Já existe um agente chamado ${name}.`)
+    throw nameTaken(failure, to.name)
+  }
+  return { from, to }
+}
+
+// Puts an agent's name and role back, while they are still as the change left them.
+export async function restoreAgentProfile(
+  member: Member,
+  id: string,
+  { from, to }: { from: AgentProfileState; to: AgentProfileState },
+) {
+  const found = await findAgent(member, id)
+  if (!manages(member) || !found || found.name !== to.name || found.role !== to.role) return "stale"
+  try {
+    await db.update(agent).set(from).where(eq(agent.id, id))
+  } catch (failure) {
+    if (nameTaken(failure, from.name) instanceof AgentError) return "stale"
     throw failure
   }
+  return "restored"
 }

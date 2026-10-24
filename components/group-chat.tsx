@@ -6,6 +6,7 @@ import { markGroupReadAction, sendGroupMessageAction } from "@/app/actions"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { useConversations } from "@/components/conversations"
 import { GroupAvatar } from "@/components/group-avatar"
+import { GroupPanel, type GroupProfile } from "@/components/group-panel"
 import { MessageActions } from "@/components/message-actions"
 import { MessageCard } from "@/components/message-card"
 import { type Mentionable, PromptForm } from "@/components/prompt-form"
@@ -29,6 +30,7 @@ type Props = {
   group: { id: string; name: string; general: boolean; members: string[] }
   agents: Mentionable[]
   messages: GroupChatMessage[]
+  profile: GroupProfile
 }
 
 // "@Lia" stands out in what members write, for the agents of the group.
@@ -48,7 +50,8 @@ function withMentions(text: string, agents: Mentionable[]): ReactNode {
 
 // The group as each member sees it: their own messages on the right, everyone else's on the left
 // with their name, and the agents without a bubble. Sending stays out of transitions, as in Chat.
-export function GroupChat({ group, agents, messages }: Props) {
+export function GroupChat({ group, agents, messages, profile }: Props) {
+  const [showProfile, setShowProfile] = useState(false)
   const [sent, setSent] = useState<{ after: GroupChatMessage[]; messages: GroupChatMessage[] }>({
     after: messages,
     messages: [],
@@ -102,64 +105,73 @@ export function GroupChat({ group, agents, messages }: Props) {
   ].join(" · ")
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-canvas">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line bg-surface px-4 lg:px-6">
-        <SidebarTrigger className="text-sub" />
-        <div className="flex min-w-0 items-center gap-2.5 rounded-full py-1 pr-4 pl-1">
-          <GroupAvatar looks={agents.map((agent) => agent.look)} size={34} ring="bg-surface" />
-          <span className="min-w-0 leading-tight">
-            <span className="block truncate text-[15px] font-semibold text-ink">{group.name}</span>
-            <span className="block truncate text-[12px] text-faint">
-              {answering ? `${answering.name} está respondendo...` : who}
+    <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-canvas">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line bg-surface px-4 lg:px-6">
+          <SidebarTrigger className="text-sub" />
+          <button
+            type="button"
+            onClick={() => setShowProfile((shown) => !shown)}
+            aria-expanded={showProfile}
+            title={`Sobre ${group.name}`}
+            className="flex min-w-0 items-center gap-2.5 rounded-full py-1 pr-4 pl-1 text-left hover:bg-soft"
+          >
+            <GroupAvatar looks={agents.map((agent) => agent.look)} size={34} ring="bg-surface" />
+            <span className="min-w-0 leading-tight">
+              <span className="block truncate text-[15px] font-semibold text-ink">{group.name}</span>
+              <span className="block truncate text-[12px] text-faint">
+                {answering ? `${answering.name} está respondendo...` : who}
+              </span>
             </span>
-          </span>
-        </div>
-      </header>
+          </button>
+        </header>
 
-      <MessageScrollerProvider>
-        <MessageScroller className="flex-1">
-          <MessageScrollerViewport>
-            <MessageScrollerContent className="mx-auto flex w-full max-w-[760px] flex-col gap-3 px-6 pt-6 pb-6">
-              <SystemEvent>
-                {group.general
-                  ? "Grupo com toda a equipe e todos os agentes de agenda."
-                  : `Grupo com ${group.members.join(", ")}${agents.length ? ` e ${agents.map((agent) => agent.name).join(", ")}` : ""}.`}{" "}
-                {agents.length ? "Escreva @ e o nome de um agente para chamá-lo." : ""}
-              </SystemEvent>
-              {shown.map((message, index) => {
-                const previous = shown[index - 1]
-                const sameAuthor =
-                  previous && previous.by.kind === message.by.kind && previous.by.name === message.by.name
-                return (
-                  <MessageScrollerItem key={message.id} messageId={message.id} className="flex flex-col">
-                    <GroupMessage groupId={group.id} message={message} agents={agents} named={!sameAuthor} />
+        <MessageScrollerProvider>
+          <MessageScroller className="flex-1">
+            <MessageScrollerViewport>
+              <MessageScrollerContent className="mx-auto flex w-full max-w-[760px] flex-col gap-3 px-6 pt-6 pb-6">
+                <SystemEvent>
+                  {group.general
+                    ? "Grupo com toda a equipe e todos os agentes de agenda."
+                    : `Grupo com ${group.members.join(", ")}${agents.length ? ` e ${agents.map((agent) => agent.name).join(", ")}` : ""}.`}{" "}
+                  {agents.length ? "Escreva @ e o nome de um agente para chamá-lo." : ""}
+                </SystemEvent>
+                {shown.map((message, index) => {
+                  const previous = shown[index - 1]
+                  const sameAuthor =
+                    previous && previous.by.kind === message.by.kind && previous.by.name === message.by.name
+                  return (
+                    <MessageScrollerItem key={message.id} messageId={message.id} className="flex flex-col">
+                      <GroupMessage groupId={group.id} message={message} agents={agents} named={!sameAuthor} />
+                    </MessageScrollerItem>
+                  )
+                })}
+                {answering ? (
+                  <MessageScrollerItem messageId="thinking">
+                    <Thinking look={answering.look} />
                   </MessageScrollerItem>
-                )
-              })}
-              {answering ? (
-                <MessageScrollerItem messageId="thinking">
-                  <Thinking look={answering.look} />
-                </MessageScrollerItem>
-              ) : null}
-            </MessageScrollerContent>
-          </MessageScrollerViewport>
-          <MessageScrollerButton>
-            <ArrowDownIcon />
-            <span className="sr-only">Ir para a última mensagem</span>
-          </MessageScrollerButton>
-        </MessageScroller>
-      </MessageScrollerProvider>
+                ) : null}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+            <MessageScrollerButton>
+              <ArrowDownIcon />
+              <span className="sr-only">Ir para a última mensagem</span>
+            </MessageScrollerButton>
+          </MessageScroller>
+        </MessageScrollerProvider>
 
-      <div className="mx-auto flex w-full max-w-[760px] shrink-0 flex-col gap-3 px-4 pb-5 lg:px-6">
-        {notice ? <SystemEvent>{notice}</SystemEvent> : null}
-        {failed ? <SystemEvent>A mensagem não foi enviada. Confira a sua conexão e tente de novo.</SystemEvent> : null}
-        <PromptForm
-          placeholder={`Escreva para ${group.name}`}
-          isBusy={Boolean(answering)}
-          onSubmit={send}
-          mentions={agents}
-        />
+        <div className="mx-auto flex w-full max-w-[760px] shrink-0 flex-col gap-3 px-4 pb-5 lg:px-6">
+          {notice ? <SystemEvent>{notice}</SystemEvent> : null}
+          {failed ? <SystemEvent>A mensagem não foi enviada. Confira a sua conexão e tente de novo.</SystemEvent> : null}
+          <PromptForm
+            placeholder={`Escreva para ${group.name}`}
+            isBusy={Boolean(answering)}
+            onSubmit={send}
+            mentions={agents}
+          />
+        </div>
       </div>
+      {showProfile ? <GroupPanel group={profile} onClose={() => setShowProfile(false)} /> : null}
     </div>
   )
 }

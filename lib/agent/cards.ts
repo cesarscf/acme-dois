@@ -56,6 +56,10 @@ export type Restore = {
   restore: { status?: "scheduled" | "cancelled"; memberId?: string | null }
 }
 
+// A group's name and who is in it, and an agent's name and role, as a change left them.
+export type GroupSnapshot = { name: string; memberIds: string[]; agentIds: string[] }
+export type AgentSnapshot = { name: string; role: string }
+
 // What the member settled for each proposed agent, in the proposal's order.
 export type AgentChoice = AgentLook & { name: string }
 
@@ -75,3 +79,7 @@ export type CardAction =
   | { kind: "apply"; tool: string; input: unknown }
   | { kind: "create_agents"; agents: ProposedAgent[] }
   | { kind: "look"; agentId: string }
+  // Undoing what the setup agent changed in a group or an agent, while it is still as it left it.
+  | { kind: "restore_group"; groupId: string; from: GroupSnapshot; to: GroupSnapshot }
+  | { kind: "delete_group"; groupId: string }
+  | { kind: "restore_agent"; agentId: string; from: AgentSnapshot; to: AgentSnapshot }

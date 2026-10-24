@@ -3,6 +3,7 @@ import { z } from "zod"
 import { type AgendaChange, AgendaError } from "../agenda/appointments"
 import type { Member } from "../member"
 import { AgentError } from "../organization/agents"
+import { GroupError } from "../organization/groups"
 import { InviteError } from "../organization/invites"
 import type { ApprovalCard, Card, CardAction } from "./cards"
 
@@ -97,6 +98,7 @@ export function createToolRegistry(tools: Tool[]) {
           failure instanceof ToolRefusal ||
           failure instanceof AgendaError ||
           failure instanceof AgentError ||
+          failure instanceof GroupError ||
           failure instanceof InviteError
         )
           return error(call, failure.message)

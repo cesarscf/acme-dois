@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { createOrganization, joinOrganization, resetDatabase } from "@/test/fixtures"
 import type { Member } from "../member"
-import { createAgents, setupAgent } from "../organization/agents"
+import { createAgents, findAgent, setupAgent } from "../organization/agents"
+import { findGroup } from "../organization/groups"
 import { findOrganizationProfile } from "../organization/profile"
 import { setupTools } from "./setup-tools"
 import { createToolRegistry } from "./tool-registry"
@@ -49,9 +50,12 @@ test("read_organization shows the profile and the team, not the setup agent", as
   const execution = await run("read_organization", {})
   expect(JSON.parse(execution.result.content as string)).toEqual({
     profile: null,
-    people: [{ name: "Ana", manages: true, about: null }],
+    people: [{ member_id: ana.id, name: "Ana", manages: true, about: null }],
     pending_invites: [],
     agents: [{ id: created.id, name: "Lia", role: "Secretária da agenda", tools: ["read_agenda"], acts_alone: [] }],
+    groups: [
+      { id: expect.any(String), name: "geral", general: true, people: ["Ana"], agents: ["Lia"], you_can_change: false },
+    ],
   })
 })
 
@@ -225,8 +229,77 @@ describe("someone on the team who doesn't run the organization", () => {
     expect(await findOrganizationProfile(ana.organizationId)).toEqual({ about: "Fisioterapia.", appointmentMinutes: 50 })
     const read = JSON.parse((await run("read_organization", {}, joana)).result.content as string)
     expect(read.people).toEqual([
-      { name: "Ana", manages: true, about: null },
-      { name: "Joana", manages: false, about: "Pilates. Só às quintas." },
+      { member_id: ana.id, name: "Ana", manages: true, about: null },
+      { member_id: joana.id, name: "Joana", manages: false, about: "Pilates. Só às quintas." },
     ])
+  })
+})
+
+describe("groups and agents, as the app's screens change them", () => {
+  const charter = { ...lia, tools: ["read_agenda"], actsAlone: [], shape: "round" as const, color: "#2f80ff" }
+
+  test("create_group creates it with whoever asks, in a receipt that undoes it", async () => {
+    const bia = await joinOrganization(ana.organizationId, "Bia")
+    const [created] = await createAgents(ana, [charter])
+    const execution = await run("create_group", { name: "Recepção", member_ids: [bia.id], agent_ids: [created.id] }, bia)
+    expect(execution.card).toEqual({
+      type: "receipt",
+      title: "Grupo Recepção criado",
+      detail: "Pessoas: Bia. Agentes: Lia.",
+      status: "applied",
+      undoable: true,
+    })
+    expect(execution.action).toEqual({ kind: "delete_group", groupId: expect.any(String) })
+  })
+
+  test("change_group changes who is in it, and says so", async () => {
+    const bia = await joinOrganization(ana.organizationId, "Bia")
+    const [created] = await createAgents(ana, [charter])
+    const made = JSON.parse((await run("create_group", { name: "Recepção", member_ids: [], agent_ids: [] })).result.content as string)
+    const execution = await run("change_group", {
+      group_id: made.group_id,
+      name: "Manhã",
+      add_member_ids: [bia.id],
+      remove_member_ids: [],
+      add_agent_ids: [created.id],
+      remove_agent_ids: [],
+    })
+    expect(execution.card).toMatchObject({
+      title: "Grupo Manhã",
+      detail: "Agora se chama Manhã. Entrou: Bia. Agente que entrou: Lia.",
+      undoable: true,
+    })
+    expect(execution.action).toMatchObject({ kind: "restore_group", from: { name: "Recepção" }, to: { name: "Manhã" } })
+    expect((await findGroup(bia, made.group_id))?.agents.map((agent) => agent.name)).toEqual(["Lia"])
+  })
+
+  test("change_group turns down whoever may not change the group, with the reason", async () => {
+    const bia = await joinOrganization(ana.organizationId, "Bia")
+    const made = JSON.parse(
+      (await run("create_group", { name: "Recepção", member_ids: [bia.id], agent_ids: [] })).result.content as string,
+    )
+    const execution = await run(
+      "change_group",
+      { group_id: made.group_id, name: "Minha", add_member_ids: [], remove_member_ids: [], add_agent_ids: [], remove_agent_ids: [] },
+      bia,
+    )
+    expect(execution.result).toMatchObject({ is_error: true, content: "Só quem criou o grupo ou administra a clínica muda o grupo." })
+  })
+
+  test("change_agent renames an agent for who runs the organization only", async () => {
+    const [created] = await createAgents(ana, [charter])
+    const execution = await run("change_agent", { agent_id: created.id, name: "Nina", role: null })
+    expect(execution.card).toMatchObject({ title: "Agente Nina", detail: "Nome: Lia → Nina." })
+    expect(execution.action).toEqual({
+      kind: "restore_agent",
+      agentId: created.id,
+      from: { name: "Lia", role: "Secretária da agenda" },
+      to: { name: "Nina", role: "Secretária da agenda" },
+    })
+    expect((await findAgent(ana, created.id))?.name).toBe("Nina")
+
+    const joana = await joinOrganization(ana.organizationId, "Joana")
+    const refused = await run("change_agent", { agent_id: created.id, name: "Tom", role: null }, joana)
+    expect(refused.result.is_error).toBe(true)
   })
 })

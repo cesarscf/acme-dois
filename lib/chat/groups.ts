@@ -6,155 +6,16 @@ import type { Model } from "../agent/model"
 import { turnContext } from "../agent/prompt"
 import { type AgentReply, runTurn, unanswered } from "../agent/run-turn"
 import { db } from "../db"
-import {
-  agent as agentTable,
-  chatGroup,
-  chatGroupAgent,
-  chatGroupMember,
-  groupMessage,
-  groupRead,
-  groupTranscriptEntry,
-  member as memberTable,
-} from "../db/schema"
+import { agent as agentTable, chatGroupAgent, groupMessage, groupRead, groupTranscriptEntry } from "../db/schema"
 import { type Member, manages, organizationTimeZone } from "../member"
-import { type Agent, agentOrder } from "../organization/agents"
+import type { Agent } from "../organization/agents"
+import { type Group, listGroups, teamAgents } from "../organization/groups"
 import { aboutOf, type CardChoice, type CardSettled, decideCard, harnessFor, noteOf } from "./conversation"
 import { mentionsIn } from "./mentions"
 
 // Groups: the team and its agents talking together. An agent answers only when someone calls it
 // with @ and its name, acting for whoever called it; only that person acts on the cards it shows.
 // Each agent keeps a transcript of its own per group, apart from its direct conversations.
-
-export const generalGroupName = "geral"
-
-// Every organization has its general group; calling this again changes nothing.
-export async function createGeneralGroup(organizationId: string) {
-  await db.insert(chatGroup).values({ organizationId, name: generalGroupName, general: true }).onConflictDoNothing()
-}
-
-// The general group, and the groups the member was put in.
-const visibleTo = (member: Member) =>
-  and(
-    eq(chatGroup.organizationId, member.organizationId),
-    or(
-      eq(chatGroup.general, true),
-      sql`exists (select 1 from ${chatGroupMember} where ${chatGroupMember.groupId} = ${chatGroup.id} and ${chatGroupMember.memberId} = ${member.id})`,
-    ),
-  )
-
-const groupOrder = [desc(chatGroup.general), asc(chatGroup.createdAt)]
-
-// The groups the member is in that have this agent: the general group has every team agent.
-export async function listAgentGroups(member: Member, agent: Pick<Agent, "id" | "kind">) {
-  if (agent.kind !== "team") return []
-  return db
-    .select({ id: chatGroup.id, name: chatGroup.name, general: chatGroup.general })
-    .from(chatGroup)
-    .where(
-      and(
-        visibleTo(member),
-        or(
-          eq(chatGroup.general, true),
-          sql`exists (select 1 from ${chatGroupAgent} where ${chatGroupAgent.groupId} = ${chatGroup.id} and ${chatGroupAgent.agentId} = ${agent.id})`,
-        ),
-      ),
-    )
-    .orderBy(...groupOrder)
-}
-
-export async function listGroups(member: Member) {
-  return db
-    .select({ id: chatGroup.id, name: chatGroup.name, general: chatGroup.general, createdAt: chatGroup.createdAt })
-    .from(chatGroup)
-    .where(visibleTo(member))
-    .orderBy(...groupOrder)
-}
-
-const teamAgents = (organizationId: string) =>
-  db
-    .select()
-    .from(agentTable)
-    .where(and(eq(agentTable.organizationId, organizationId), eq(agentTable.kind, "team")))
-    .orderBy(...agentOrder)
-
-// A group the member is in, with who is in it: in the general group, the whole team and every team
-// agent, as they are now.
-export async function findGroup(member: Member, id: string) {
-  if (!/^[0-9a-f-]{36}$/i.test(id)) return undefined
-  const [found] = await db
-    .select({ id: chatGroup.id, name: chatGroup.name, general: chatGroup.general, createdAt: chatGroup.createdAt })
-    .from(chatGroup)
-    .where(and(eq(chatGroup.id, id), visibleTo(member)))
-  if (!found) return undefined
-  const [team, agents] = await Promise.all([listTeam(member.organizationId), teamAgents(member.organizationId)])
-  if (found.general) return { ...found, members: team, agents }
-  const [memberIds, agentIds] = await Promise.all([
-    db.select({ id: chatGroupMember.memberId }).from(chatGroupMember).where(eq(chatGroupMember.groupId, id)),
-    db.select({ id: chatGroupAgent.agentId }).from(chatGroupAgent).where(eq(chatGroupAgent.groupId, id)),
-  ])
-  const [inMembers, inAgents] = [new Set(memberIds.map((row) => row.id)), new Set(agentIds.map((row) => row.id))]
-  return {
-    ...found,
-    members: team.filter((teammate) => inMembers.has(teammate.id)),
-    agents: agents.filter((candidate) => inAgents.has(candidate.id)),
-  }
-}
-
-export type Group = NonNullable<Awaited<ReturnType<typeof findGroup>>>
-
-export class GroupError extends Error {}
-
-// "# Recepção " is "Recepção".
-const groupName = (name: string) => name.trim().replace(/^#+\s*/, "").replace(/\s+/g, " ")
-
-// Whoever creates a group is always in it. Its agents are team agents: the setup agent talks to
-// each member alone.
-export async function createGroup(
-  member: Member,
-  input: { name: string; memberIds: string[]; agentIds: string[] },
-) {
-  const name = groupName(input.name)
-  if (!name) throw new GroupError("Dê um nome ao grupo.")
-  if (name.length > 40) throw new GroupError("O nome do grupo pode ter até 40 letras.")
-  const memberIds = [...new Set([member.id, ...input.memberIds])]
-  const agentIds = [...new Set(input.agentIds)]
-  const [members, agents] = await Promise.all([
-    db
-      .select({ id: memberTable.id })
-      .from(memberTable)
-      .where(and(eq(memberTable.organizationId, member.organizationId), inArray(memberTable.id, memberIds))),
-    agentIds.length
-      ? db
-          .select({ id: agentTable.id })
-          .from(agentTable)
-          .where(
-            and(
-              eq(agentTable.organizationId, member.organizationId),
-              eq(agentTable.kind, "team"),
-              inArray(agentTable.id, agentIds),
-            ),
-          )
-      : [],
-  ])
-  if (members.length !== memberIds.length) throw new GroupError("Só pessoas da equipe entram no grupo.")
-  if (agents.length !== agentIds.length) throw new GroupError("Só agentes de agenda da clínica entram no grupo.")
-  try {
-    return await db.transaction(async (tx) => {
-      const [created] = await tx
-        .insert(chatGroup)
-        .values({ organizationId: member.organizationId, name, createdBy: member.id })
-        .returning({ id: chatGroup.id, name: chatGroup.name })
-      await tx.insert(chatGroupMember).values(memberIds.map((memberId) => ({ groupId: created.id, memberId })))
-      if (agentIds.length)
-        await tx.insert(chatGroupAgent).values(agentIds.map((agentId) => ({ groupId: created.id, agentId })))
-      return created
-    })
-  } catch (failure) {
-    if ((failure as { cause?: { code?: string } }).cause?.code === "23505")
-      throw new GroupError(`Já existe um grupo chamado ${name}.`)
-    throw failure
-  }
-}
 
 // Names by id of everyone who writes in the organization's groups, including who left the team.
 async function authors(organizationId: string) {

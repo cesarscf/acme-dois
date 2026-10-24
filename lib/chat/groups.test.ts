@@ -9,19 +9,8 @@ import { unanswered } from "../agent/run-turn"
 import type { Member } from "../member"
 import { type Agent, createAgents, findAgent } from "../organization/agents"
 import { listMessages, sendMessage } from "./conversation"
-import {
-  actOnGroupCard,
-  createGroup,
-  findGroup,
-  type Group,
-  listAgentGroups,
-  GroupError,
-  listGroupMessages,
-  listGroups,
-  listGroupSummaries,
-  markGroupRead,
-  sendGroupMessage,
-} from "./groups"
+import { actOnGroupCard, listGroupMessages, listGroupSummaries, markGroupRead, sendGroupMessage } from "./groups"
+import { createGroup, findGroup, type Group, listAgentGroups, GroupError, listGroups, renameGroup } from "../organization/groups"
 
 // Friday 2026-10-23, 09:00 in São Paulo.
 const now = new Date("2026-10-23T12:00:00Z")
@@ -107,6 +96,23 @@ describe("createGroup", () => {
       { name: "Zuri", role: lia.role, instructions: lia.instructions, tools: lia.tools, actsAlone: [], shape: "round", color: "#2f80ff" },
     ])
     expect(createGroup(ana, { name: "Outro", memberIds: [], agentIds: [outsider[0].id] })).rejects.toThrow(GroupError)
+  })
+})
+
+describe("renameGroup", () => {
+  test("whoever created it, or runs the organization, renames it; the general group keeps its name", async () => {
+    const joana = await joinOrganization(ana.organizationId, "Joana")
+    const created = await createGroup(joana, { name: "Recepção", memberIds: [ana.id, bia.id], agentIds: [] })
+    const group = (await findGroup(joana, created.id))!
+    expect(await renameGroup(joana, group, "# Recepção da manhã")).toBe("Recepção da manhã")
+    expect(await renameGroup(ana, group, "Manhã")).toBe("Manhã")
+
+    const caio = await joinOrganization(ana.organizationId, "Caio")
+    await createGroup(joana, { name: "Tarde", memberIds: [caio.id], agentIds: [] })
+    const tarde = (await findGroup(caio, (await listGroups(caio))[1].id))!
+    expect(renameGroup(caio, { ...tarde }, "Minha")).rejects.toThrow(GroupError)
+    expect(renameGroup(joana, (await findGroup(joana, created.id))!, "tarde")).rejects.toThrow("Já existe um grupo chamado tarde.")
+    expect(renameGroup(ana, await general(ana), "todos")).rejects.toThrow("O geral tem sempre toda a equipe e todos os agentes, com esse nome.")
   })
 })
 

@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm"
 import { db } from "@/lib/db"
 import { member, organization, user } from "@/lib/db/schema"
 import type { Member } from "@/lib/member"
-import { createGeneralGroup } from "@/lib/chat/groups"
+import { createGeneralGroup } from "@/lib/organization/groups"
 import { createSetupAgent } from "@/lib/organization/agents"
 
 export async function resetDatabase() {

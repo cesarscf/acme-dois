@@ -6,7 +6,8 @@ import type { AgentChoice } from "@/lib/agent/cards"
 import { type AgentLook, avatarColors, avatarShapes } from "@/lib/agent/look"
 import { createAnthropicModel, type Model } from "@/lib/agent/model"
 import { actOnCard, askForNewAgent, markRead, sendMessage } from "@/lib/chat/conversation"
-import { actOnGroupCard, createGroup, findGroup, GroupError, markGroupRead, sendGroupMessage } from "@/lib/chat/groups"
+import { actOnGroupCard, markGroupRead, sendGroupMessage } from "@/lib/chat/groups"
+import { changeGroup, createGroup, findGroup, GroupError, renameGroup } from "@/lib/organization/groups"
 import { requireMember } from "@/lib/dal"
 import { AgentError, findAgent, newAgentProblem, updateAgentLook, updateAgentProfile } from "@/lib/organization/agents"
 
@@ -160,4 +161,40 @@ export async function updateAgentLookAction(agentId: string, chosen: AgentLook) 
   if (!input.success) return
   await updateAgentLook(member, agentId, input.data)
   revalidatePath("/", "layout")
+}
+
+export async function renameGroupAction(groupId: string, name: string): Promise<{ error?: string }> {
+  const member = await requireMember()
+  const group = await findGroup(member, groupId)
+  if (!group) return { error: "Esse grupo não existe." }
+  try {
+    await renameGroup(member, group, name.slice(0, 80))
+  } catch (failure) {
+    if (failure instanceof GroupError) return { error: failure.message }
+    throw failure
+  }
+  revalidatePath("/", "layout")
+  return {}
+}
+
+const groupChange = z.object({
+  addMemberIds: z.array(z.string().min(1).max(64)).max(30).optional(),
+  removeMemberIds: z.array(z.string().min(1).max(64)).max(30).optional(),
+  addAgentIds: z.array(z.uuid()).max(30).optional(),
+  removeAgentIds: z.array(z.uuid()).max(30).optional(),
+})
+
+// Who created the group, or runs the organization, puts people and agents in it or takes them out.
+export async function changeGroupAction(groupId: string, change: z.infer<typeof groupChange>): Promise<{ error?: string }> {
+  const member = await requireMember()
+  const [group, input] = [await findGroup(member, groupId), groupChange.safeParse(change)]
+  if (!group || !input.success) return { error: "Não deu para mudar o grupo." }
+  try {
+    await changeGroup(member, group, input.data)
+  } catch (failure) {
+    if (failure instanceof GroupError) return { error: failure.message }
+    throw failure
+  }
+  revalidatePath("/", "layout")
+  return {}
 }

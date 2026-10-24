@@ -3,10 +3,11 @@ import { Chat } from "@/components/chat"
 import { agendaTools, cancelAppointmentTool } from "@/lib/agent/agenda-tools"
 import { suggestionsFor } from "@/lib/agent/suggestions"
 import { listMessages } from "@/lib/chat/conversation"
-import { listAgentGroups, listGroupSummaries } from "@/lib/chat/groups"
+import { listGroupSummaries } from "@/lib/chat/groups"
 import { requireMember } from "@/lib/dal"
 import { manages } from "@/lib/member"
 import { findAgent } from "@/lib/organization/agents"
+import { listAgentGroups } from "@/lib/organization/groups"
 
 export default async function AgentPage({ params }: PageProps<"/agents/[agentId]">) {
   const [{ agentId }, member] = await Promise.all([params, requireMember()])

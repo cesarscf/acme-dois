@@ -30,7 +30,7 @@ Toda organization nasce com a **Acme Bot**, a agente de configuração (hook `af
 1. Abre a conversa com uma boas-vindas fixa, escrita pelo app.
 2. Entende como a clínica trabalha, uma pergunta por vez, e guarda isso no **perfil da organization** (`save_organization_profile`). Todos os agentes leem esse perfil, e a duração usual das sessões vira o padrão ao marcar.
 3. Propõe a equipe de agentes de agenda (`propose_team`). Cada agente vem com nome, cargo, instruções permanentes, as ferramentas que usa e as que usa sem perguntar. Os agentes só passam a existir quando o membro confirma o card.
-4. Depois, tira dúvidas sobre o app.
+4. Depois, tira dúvidas sobre o app e faz pelo membro o que as telas fazem: cria e muda grupos (nome, pessoas e agentes) e muda o nome, o cargo e a aparência dos agentes. Cada mudança volta num recibo com Desfazer.
 
 Cada agente criado trabalha pela sua ficha. Ferramentas fora da ficha não chegam ao modelo, e quem tenta usá-las recebe uma recusa. O que ele não faz sozinho vira um card **Confirmar**, e só depois da confirmação a ação é aplicada, com recibo e Desfazer. Cancelar sempre pede confirmação, e nenhum agente pode ganhar autonomia para isso.
 
@@ -48,6 +48,7 @@ Além da conversa de cada membro com cada agente, a equipe conversa em grupos. O
 
 - **Um agente só responde quando é chamado com @nome.** Sem menção, é conversa entre pessoas. Se várias pessoas chamam, responde o primeiro agente do grupo mencionado; chamar um agente de fora do grupo (ou a Acme Bot) avisa quem escreveu que ele não vai ver.
 - O agente age **em nome de quem o chamou**: recibos e cards de confirmação ficam visíveis para todo o grupo, mas só essa pessoa confirma, recusa ou desfaz.
+- Clicar no nome do grupo, no topo, abre o **painel do grupo**: os agentes empilhados, o nome e as abas **Pessoas** e **Agentes**. Quem criou o grupo, ou administra a clínica, muda ali o nome e põe ou tira pessoas e agentes (ou pede à Acme Bot); o geral fica sempre com todos.
 - Cada agente tem uma **transcrição por grupo**, separada das conversas diretas. A cada chamada ele lê o que o grupo disse desde a última resposta dele, com o nome de quem escreveu e "(para você)" no que deve responder. Um turno por vez por agente e grupo (advisory lock no Postgres).
 
 ## Como funciona
@@ -59,18 +60,19 @@ app/actions.ts                     Server Actions: enviar mensagem, agir num car
 lib/dal.ts                         sessão + membro da organization ativa (server-only)
 lib/chat/conversation.ts           mensagens e transcrição por membro e agente; aplica os cards
 lib/chat/notices.ts                avisos de mudança na agenda para quem atende
-lib/chat/groups.ts                 grupos: quem está em cada um, mensagens, o turno do agente chamado e os cards
+lib/chat/groups.ts                 o que se diz nos grupos: mensagens, o turno do agente chamado e os cards
 lib/chat/mentions.ts               quem foi chamado com @ numa mensagem
 app/(chat)/groups/[groupId]        um grupo → components/group-chat.tsx
 components/create-menu.tsx         o + da lista: Novo agente e Novo grupo, cada um num diálogo
 components/agent-panel.tsx         o painel do agente, aberto pelo nome dele no topo da conversa
+components/group-panel.tsx         o painel do grupo, do mesmo jeito (components/side-panel.tsx é a moldura dos dois)
 lib/agent/run-turn.ts              loop: modelo → ferramentas → modelo, até terminar
 lib/agent/tool-registry.ts         valida entradas (zod) e troca por um card de confirmação o que o agente não faz sozinho
 lib/agent/agenda-tools.ts          ferramentas dos agentes de agenda
 lib/agent/setup-tools.ts           ferramentas da Acme Bot
 lib/agent/prompt.ts                boas-vindas, prompt da Acme Bot e prompt montado da ficha
 lib/agent/model.ts                 a chamada à Messages API
-lib/organization/*                 agentes e perfil da organization
+lib/organization/*                 agentes, grupos (quem está em cada um) e perfil da organization
 lib/agenda/*                       clientes, sessões e membros, sempre no escopo da organization
 ```
 

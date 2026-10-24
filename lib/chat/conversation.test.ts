@@ -8,6 +8,7 @@ import { introText, setupPrompt, welcomeText } from "../agent/prompt"
 import { unanswered } from "../agent/run-turn"
 import type { Member } from "../member"
 import { type Agent, createAgents, findAgent, listAgents } from "../organization/agents"
+import { listGroups } from "../organization/groups"
 import { saveMemberProfile, saveOrganizationProfile } from "../organization/profile"
 import { actOnCard, askForNewAgent, listConversations, listMessages, markRead, sendMessage } from "./conversation"
 import { noticeNote } from "./notices"
@@ -84,6 +85,9 @@ describe("the setup agent", () => {
       "choose_agent_look",
       "invite_member",
       "save_my_profile",
+      "create_group",
+      "change_group",
+      "change_agent",
     ])
     expect((await shown(ana, setup)).map((row) => row.author)).toEqual(["agent", "member", "agent"])
   })
@@ -210,6 +214,26 @@ describe("the setup agent", () => {
       content:
         '[Aviso do Acme, não escrito pelo membro] Ana tentou aplicar, mas nada foi feito em "Criar este agente?". Motivo: Já existe um agente com um desses nomes.',
     })
+  })
+})
+
+describe("what the setup agent changes in groups and agents", () => {
+  test("is undone from its receipt, while nothing changed since", async () => {
+    const lia = await teamAgent()
+    const { model } = scriptedModel(
+      uses({ name: "change_agent", input: { agent_id: lia.id, name: "Nina", role: null } }),
+      says("Pronto, agora é Nina."),
+      uses({ name: "create_group", input: { name: "Recepção", member_ids: [bia.id], agent_ids: [lia.id] } }),
+      says("Criei."),
+    )
+    await sendMessage(ana, setup, "Muda o nome da Lia para Nina", { model, now })
+    await sendMessage(ana, setup, "Cria o grupo Recepção comigo, a Bia e a Nina", { model, now })
+    const [renamed, created] = (await listMessages(ana, setup)).filter((row) => row.card)
+
+    expect(await actOnCard(ana, setup, renamed.id, "undo")).toMatchObject({ status: "undone" })
+    expect((await findAgent(ana, lia.id))?.name).toBe("Lia")
+    expect(await actOnCard(ana, setup, created.id, "undo")).toMatchObject({ status: "undone" })
+    expect(await listGroups(ana)).toHaveLength(1)
   })
 })
 

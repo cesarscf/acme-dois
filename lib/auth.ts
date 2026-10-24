@@ -5,7 +5,7 @@ import { organization } from "better-auth/plugins/organization"
 import { asc, eq } from "drizzle-orm"
 import { db } from "./db"
 import * as schema from "./db/schema"
-import { createGeneralGroup } from "./chat/groups"
+import { createGeneralGroup } from "./organization/groups"
 import { createSetupAgent } from "./organization/agents"
 
 export const auth = betterAuth({

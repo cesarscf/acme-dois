@@ -1,12 +1,13 @@
 "use client"
 
-import { PencilIcon, XIcon } from "lucide-react"
+import { PencilIcon } from "lucide-react"
 import Link from "next/link"
-import { useState, useTransition } from "react"
+import { useState } from "react"
 import { updateAgentLookAction, updateAgentProfileAction } from "@/app/actions"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { colorNames, shapeNames } from "@/components/appearance-form"
 import { GroupAvatar } from "@/components/group-avatar"
+import { EditableText, PanelTabs, SidePanel } from "@/components/side-panel"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { type AgentLook, avatarColors, avatarShapes } from "@/lib/agent/look"
 import { cn } from "@/lib/utils"
@@ -33,18 +34,7 @@ type Tab = "details" | "groups"
 export function AgentPanel({ agent, onClose }: { agent: AgentProfile; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("details")
   return (
-    <aside className="fixed inset-0 z-40 flex flex-col overflow-y-auto bg-surface lg:static lg:z-auto lg:w-[min(520px,45%)] lg:shrink-0 lg:border-l lg:border-line">
-      <div className="flex justify-end p-4">
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Fechar"
-          className="grid size-10 place-items-center rounded-full bg-soft text-ink hover:bg-line"
-        >
-          <XIcon className="size-5" strokeWidth={1.75} />
-        </button>
-      </div>
-
+    <SidePanel onClose={onClose}>
       <div className="flex flex-col items-center px-6">
         <LookPicker agent={agent} />
         <EditableText
@@ -52,8 +42,8 @@ export function AgentPanel({ agent, onClose }: { agent: AgentProfile; onClose: (
           value={agent.name}
           editable={agent.canEditProfile}
           label="Nome do agente"
-          field="name"
-          agentId={agent.id}
+          maxLength={40}
+          onSave={(name) => updateAgentProfileAction(agent.id, { name })}
           className="mt-4 text-[22px] font-semibold text-ink"
         />
         <EditableText
@@ -61,39 +51,25 @@ export function AgentPanel({ agent, onClose }: { agent: AgentProfile; onClose: (
           value={agent.role}
           editable={agent.canEditProfile}
           label="Cargo do agente"
-          field="role"
-          agentId={agent.id}
+          maxLength={80}
+          onSave={(role) => updateAgentProfileAction(agent.id, { role })}
           className="mt-0.5 text-[14px] text-sub"
         />
 
-        <div role="tablist" className="mt-6 flex gap-1">
-          {(
-            [
-              ["details", "Detalhes"],
-              ["groups", "Grupos"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              role="tab"
-              aria-selected={tab === id}
-              onClick={() => setTab(id)}
-              className={cn(
-                "rounded-full px-4 py-1.5 text-[14.5px] transition-colors",
-                tab === id ? "bg-soft font-medium text-ink" : "text-sub hover:text-ink",
-              )}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        <PanelTabs
+          tabs={[
+            ["details", "Detalhes"],
+            ["groups", "Grupos"],
+          ]}
+          value={tab}
+          onChange={setTab}
+        />
       </div>
 
       <div className="px-6 pt-6 pb-10">
         {tab === "details" ? <Details agent={agent} /> : <Groups agent={agent} />}
       </div>
-    </aside>
+    </SidePanel>
   )
 }
 
@@ -146,67 +122,6 @@ function Groups({ agent }: { agent: AgentProfile }) {
         </li>
       ))}
     </ul>
-  )
-}
-
-// The name or the role, edited in place: saved when the field loses focus or on Enter, put back
-// on Escape.
-function EditableText({
-  value,
-  editable,
-  label,
-  field,
-  agentId,
-  className,
-}: {
-  value: string
-  editable: boolean
-  label: string
-  field: "name" | "role"
-  agentId: string
-  className: string
-}) {
-  const [text, setText] = useState(value)
-  const [error, setError] = useState<string | null>(null)
-  const [saving, startSaving] = useTransition()
-  if (!editable) return <div className={cn("max-w-full truncate text-center", className)}>{value}</div>
-
-  const save = () => {
-    const next = text.trim()
-    if (!next || next === value) return setText(value)
-    startSaving(async () => {
-      const result = await updateAgentProfileAction(agentId, { [field]: next })
-      if (result.error) {
-        setError(result.error)
-        setText(value)
-      } else setError(null)
-    })
-  }
-
-  return (
-    <>
-      <input
-        aria-label={label}
-        value={text}
-        disabled={saving}
-        maxLength={field === "name" ? 40 : 80}
-        onChange={(event) => setText(event.target.value)}
-        onBlur={save}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") event.currentTarget.blur()
-          if (event.key === "Escape") {
-            setText(value)
-            requestAnimationFrame(() => event.currentTarget?.blur())
-          }
-        }}
-        style={{ width: `${Math.max(text.length, 4) + 2}ch` }}
-        className={cn(
-          "max-w-full rounded-xl bg-transparent px-2 py-0.5 text-center outline-none hover:bg-soft focus:bg-soft",
-          className,
-        )}
-      />
-      {error ? <p className="mt-1 text-[12.5px] text-destructive">{error}</p> : null}
-    </>
   )
 }
 
