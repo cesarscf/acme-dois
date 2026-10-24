@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm"
 import { db } from "../db"
-import { organizationProfile } from "../db/schema"
+import { memberProfile, organizationProfile } from "../db/schema"
 import type { Member } from "../member"
 
 export type OrganizationProfile = { about: string; appointmentMinutes: number | null }
@@ -18,4 +18,12 @@ export async function saveOrganizationProfile(member: Member, profile: Organizat
     .insert(organizationProfile)
     .values({ organizationId: member.organizationId, ...profile })
     .onConflictDoUpdate({ target: organizationProfile.organizationId, set: profile })
+}
+
+// Replaces how the member works, as they told it; nobody writes another member's.
+export async function saveMemberProfile(member: Member, about: string) {
+  await db
+    .insert(memberProfile)
+    .values({ memberId: member.id, organizationId: member.organizationId, about })
+    .onConflictDoUpdate({ target: memberProfile.memberId, set: { about } })
 }

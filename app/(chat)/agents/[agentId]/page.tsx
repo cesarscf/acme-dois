@@ -14,7 +14,7 @@ export default async function AgentPage({ params }: PageProps<"/agents/[agentId]
     <Chat
       agent={{ id: agent.id, name: agent.name, role: agent.role, shape: agent.shape, color: agent.color }}
       messages={messages}
-      suggestions={suggestionsFor(agent)}
+      suggestions={suggestionsFor(agent, member)}
     />
   )
 }

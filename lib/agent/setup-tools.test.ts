@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { createOrganization, resetDatabase } from "@/test/fixtures"
+import { createOrganization, joinOrganization, resetDatabase } from "@/test/fixtures"
 import type { Member } from "../member"
 import { createAgents, setupAgent } from "../organization/agents"
 import { findOrganizationProfile } from "../organization/profile"
@@ -49,7 +49,7 @@ test("read_organization shows the profile and the team, not the setup agent", as
   const execution = await run("read_organization", {})
   expect(JSON.parse(execution.result.content as string)).toEqual({
     profile: null,
-    people: ["Ana"],
+    people: [{ name: "Ana", manages: true, about: null }],
     pending_invites: [],
     agents: [{ id: created.id, name: "Lia", role: "Secretária da agenda", tools: ["read_agenda"], acts_alone: [] }],
   })
@@ -177,5 +177,49 @@ describe("invite_member", () => {
   test("refuses an invalid email", async () => {
     const execution = await run("invite_member", { name: "Joana", email: "joana" })
     expect(execution.result.content).toStartWith("Entrada inválida para invite_member")
+  })
+})
+
+describe("someone on the team who doesn't run the organization", () => {
+  let joana: Member
+  beforeEach(async () => {
+    joana = await joinOrganization(ana.organizationId, "Joana")
+  })
+
+  test("can't build the team, invite, change the profile or an agent's look, and is told whom to ask", async () => {
+    const [created] = await createAgents(ana, [{ ...lia, actsAlone: [], shape: "round", color: "#2f80ff" }])
+    const refusals = await Promise.all([
+      run("propose_team", { agents: [lia] }, joana),
+      run("invite_member", { name: "Bia", email: "bia@clinica.com" }, joana),
+      run("save_organization_profile", { about: "Pilates.", appointment_minutes: null }, joana),
+      run("choose_agent_look", { agent_id: created.id }, joana),
+    ])
+    for (const execution of refusals) {
+      expect(execution.result.is_error).toBe(true)
+      expect(execution.result.content).toStartWith("Só quem administra a clínica")
+      expect(execution.result.content).toContain(": Ana.")
+      expect(execution.card).toBeUndefined()
+    }
+    expect(await findOrganizationProfile(ana.organizationId)).toBeUndefined()
+  })
+
+  test("save_my_profile keeps how they work apart from the organization's profile", async () => {
+    await run("save_organization_profile", { about: "Fisioterapia.", appointment_minutes: 50 })
+    const execution = await run("save_my_profile", { about: "Pilates. Ter e qui, 13h às 18h." }, joana)
+    expect(execution.card).toEqual({
+      type: "receipt",
+      title: "Anotei como você trabalha",
+      detail: "Pilates. Ter e qui, 13h às 18h.",
+      status: "applied",
+      undoable: false,
+    })
+    await run("save_my_profile", { about: "Pilates. Só às quintas." }, joana)
+
+    expect(await findOrganizationProfile(ana.organizationId)).toEqual({ about: "Fisioterapia.", appointmentMinutes: 50 })
+    const read = JSON.parse((await run("read_organization", {}, joana)).result.content as string)
+    expect(read.people).toEqual([
+      { name: "Ana", manages: true, about: null },
+      { name: "Joana", manages: false, about: "Pilates. Só às quintas." },
+    ])
   })
 })

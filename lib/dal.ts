@@ -17,11 +17,18 @@ export const requireMember = cache(async (): Promise<Member> => {
   const organizationId = session.session.activeOrganizationId
   if (!organizationId) redirect("/onboarding")
   const [found] = await db
-    .select({ id: member.id, joinedAt: member.createdAt })
+    .select({ id: member.id, joinedAt: member.createdAt, role: member.role })
     .from(member)
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
   if (!found) redirect("/onboarding")
-  return { id: found.id, organizationId, userId: session.user.id, name: session.user.name, joinedAt: found.joinedAt }
+  return {
+    id: found.id,
+    organizationId,
+    userId: session.user.id,
+    name: session.user.name,
+    joinedAt: found.joinedAt,
+    role: found.role,
+  }
 })
 
 export const getOrganizationName = cache(async (organizationId: string) => {

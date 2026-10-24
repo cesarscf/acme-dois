@@ -8,7 +8,7 @@ import { introText, setupPrompt, welcomeText } from "../agent/prompt"
 import { unanswered } from "../agent/run-turn"
 import type { Member } from "../member"
 import { type Agent, createAgents, findAgent, listAgents } from "../organization/agents"
-import { saveOrganizationProfile } from "../organization/profile"
+import { saveMemberProfile, saveOrganizationProfile } from "../organization/profile"
 import { actOnCard, listMessages, sendMessage } from "./conversation"
 
 // Friday 2026-10-23, 09:00 in São Paulo.
@@ -59,6 +59,14 @@ const createAt15 = {
 }
 
 describe("the setup agent", () => {
+  test("tells whoever joins before the team exists who is building it, and asks how they work", async () => {
+    const joana = await joinOrganization(ana.organizationId, "Joana", new Date(Date.now() + 60_000))
+    const [welcome] = await shown(joana, setup)
+    expect(welcome.text).toContain("A equipe de agentes ainda está sendo montada por Ana e Bia")
+    expect(welcome.text).not.toContain("Estes agentes")
+    expect(welcome.text).toEndWith("você atende? Em quais dias e horários?")
+  })
+
   test("opens every member's conversation with the app's welcome", async () => {
     expect(await shown(ana, setup)).toEqual([{ author: "agent", text: welcomeText("Ana"), card: null }])
     expect((await shown(bia, setup))[0].text).toStartWith("Oi, Bia!")
@@ -74,6 +82,7 @@ describe("the setup agent", () => {
       "propose_team",
       "choose_agent_look",
       "invite_member",
+      "save_my_profile",
     ])
     expect((await shown(ana, setup)).map((row) => row.author)).toEqual(["agent", "member", "agent"])
   })
@@ -246,8 +255,16 @@ describe("a team agent", () => {
     expect(intro.text).not.toContain("Acabei de chegar")
 
     const [welcome] = await shown(joana, setup)
-    expect(welcome.text).toBe(welcomeText("Joana", "joined"))
-    expect(welcome.text).toContain("Os agentes da equipe já estão na lista ao lado")
+    expect(welcome.text).toBe(
+      [
+        "Oi, Joana! Que bom ter você na equipe. Eu sou a Acme Bot, quem monta os agentes de IA que cuidam da agenda da clínica.",
+        "",
+        "Estes agentes já cuidam da agenda, cada um na sua conversa, na lista ao lado:",
+        "- Lia, Secretária da agenda",
+        "",
+        "Pros agentes marcarem sessões com você do jeito certo, me conta: você atende? Em quais dias e horários?",
+      ].join("\n"),
+    )
 
     // Ana was there before the agent, so it introduces itself to her as new.
     expect((await shown(ana, tati))[0].text).toContain("Acabei de chegar na equipe.")
@@ -279,8 +296,26 @@ describe("a team agent", () => {
     expect(first.messages[1]).toEqual({ role: "system", content: expect.any(String) })
     const context = first.messages[1].content as string
     expect(context).toContain("Agora: 2026-10-23 09:00")
-    expect(context).toContain(`Quem fala com você: Ana (member_id ${ana.id})`)
-    expect(context).toContain(`- Bia (member_id ${bia.id})`)
+    expect(context).toContain(`Quem fala com você: Ana (member_id ${ana.id}, administra a clínica).`)
+    expect(context).toContain(`- Bia (member_id ${bia.id}, administra a clínica)`)
+  })
+
+  test("tells the agent when who speaks doesn't run the organization", async () => {
+    const lia = await teamAgent()
+    const joana = await joinOrganization(ana.organizationId, "Joana")
+    const { model, requests } = scriptedModel(says("Oi, Joana!"))
+    await sendMessage(joana, lia, "Oi", { model, now })
+    expect(requests[0].messages[1].content).toContain(`Quem fala com você: Joana (member_id ${joana.id}, da equipe).`)
+  })
+
+  test("knows how each person on the team works, as they told the setup agent", async () => {
+    const lia = await teamAgent()
+    const joana = await joinOrganization(ana.organizationId, "Joana")
+    await saveMemberProfile(joana, "Pilates. Ter e qui, 13h às 18h.")
+    const { model, requests } = scriptedModel(says("Anotado."))
+    await sendMessage(ana, lia, "Marca a Carla com a Joana", { model, now })
+    expect(requests[0].system).toContain(`Joana (member_id ${joana.id}):\nPilates. Ter e qui, 13h às 18h.`)
+    expect(requests[0].system).not.toContain("Ninguém contou ainda.")
   })
 
   test("resends the whole transcript, unchanged, on the next turn", async () => {

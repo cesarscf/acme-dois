@@ -11,9 +11,9 @@ import { setupTools } from "../agent/setup-tools"
 import { createToolRegistry, type ToolContext } from "../agent/tool-registry"
 import { db } from "../db"
 import { message, transcriptEntry } from "../db/schema"
-import { type Member, organizationTimeZone } from "../member"
+import { type Member, manages, organizationTimeZone } from "../member"
 import type { AgentLook } from "../agent/look"
-import { type Agent, AgentError, createAgents, updateAgentLook } from "../organization/agents"
+import { type Agent, AgentError, createAgents, listAgents, updateAgentLook } from "../organization/agents"
 import { findOrganizationProfile } from "../organization/profile"
 
 const setupRegistry = createToolRegistry(setupTools)
@@ -26,9 +26,12 @@ async function harnessFor(member: Member, agent: Agent, now: Date) {
       tools: setupRegistry,
       context: { member, now, timeZone: organizationTimeZone, actsAlone: [], appointmentMinutes: null },
     }
-  const profile = await findOrganizationProfile(member.organizationId)
+  const [profile, team] = await Promise.all([
+    findOrganizationProfile(member.organizationId),
+    listTeam(member.organizationId),
+  ])
   return {
-    system: teamPrompt(agent, profile),
+    system: teamPrompt(agent, profile, team),
     tools: createToolRegistry(agendaTools.filter((tool) => agent.tools.includes(tool.name))),
     context: {
       member,
@@ -42,6 +45,17 @@ async function harnessFor(member: Member, agent: Agent, now: Date) {
 
 const inConversation = (member: Member, agent: Agent) =>
   and(eq(message.memberId, member.id), eq(message.agentId, agent.id))
+
+// The setup agent's welcome: whoever joined later finds the agents already working, or who is
+// still building them.
+async function welcomeFor(member: Member, arrival: Arrival) {
+  if (arrival === "before") return welcomeText(member.name)
+  const [agents, team] = await Promise.all([listAgents(member), listTeam(member.organizationId)])
+  return welcomeText(member.name, arrival, {
+    agents: agents.filter((agent) => agent.kind === "team"),
+    managers: team.filter((teammate) => teammate.manages && teammate.id !== member.id).map((teammate) => teammate.name),
+  })
+}
 
 // What the member's browser gets: never a card's action. Every conversation opens with the agent's
 // first message, written by the app from what the agent is and never stored, so each member,
@@ -62,7 +76,7 @@ export async function listMessages(member: Member, agent: Agent) {
   const first = {
     id: `first-${agent.id}`,
     author: "agent" as const,
-    text: agent.kind === "setup" ? welcomeText(member.name, arrival) : introText(agent, member.name, arrival),
+    text: agent.kind === "setup" ? await welcomeFor(member, arrival) : introText(agent, member.name, arrival),
     card: null,
     createdAt: agent.createdAt,
   }
@@ -109,7 +123,7 @@ export async function sendMessage(
     { role: "user", content: text },
     // Not cleared at the next user message: a tool result is one too, so the agent would lose the
     // date as soon as it read the agenda. Each turn adds its own; the prompt says to use the latest.
-    { role: "system", content: turnContext({ speaker: member, team, now, timeZone: organizationTimeZone }) },
+    { role: "system", content: turnContext({ speaker: { ...member, manages: manages(member) }, team, now, timeZone: organizationTimeZone }) },
   ]
 
   let turn

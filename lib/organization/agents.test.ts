@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { createOrganization, resetDatabase } from "@/test/fixtures"
+import { createOrganization, joinOrganization, resetDatabase } from "@/test/fixtures"
 import type { ProposedAgent } from "../agent/cards"
 import { setupAgentLook } from "../agent/look"
 import type { Member } from "../member"
@@ -77,4 +77,12 @@ test("updateAgentLook changes an agent's look only inside its organization", asy
   expect(await updateAgentLook(other, created.id, { shape: "blob", color: "#2ea603" })).toBe(false)
   expect(await updateAgentLook(ana, created.id, { shape: "blob", color: "#2ea603" })).toBe(true)
   expect(await findAgent(ana, created.id)).toMatchObject({ shape: "blob", color: "#2ea603" })
+})
+
+test("only who runs the organization creates agents or changes their look", async () => {
+  const joana = await joinOrganization(ana.organizationId, "Joana")
+  await expect(createAgents(joana, [lia])).rejects.toThrow(AgentError)
+  const [created] = await createAgents(ana, [lia])
+  expect(await updateAgentLook(joana, created.id, { shape: "round", color: "#2f80ff" })).toBe(false)
+  expect(await findAgent(ana, created.id)).toMatchObject({ shape: "square", color: "#9b6bff" })
 })

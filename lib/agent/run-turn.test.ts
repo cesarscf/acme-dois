@@ -5,7 +5,7 @@ import { createToolRegistry, type ToolContext } from "./tool-registry"
 import { z } from "zod"
 
 const context: ToolContext = {
-  member: { id: "m1", organizationId: "o1", userId: "u1", name: "Ana", joinedAt: new Date(0) },
+  member: { id: "m1", organizationId: "o1", userId: "u1", name: "Ana", joinedAt: new Date(0), role: "owner" },
   now: new Date("2026-10-23T12:00:00Z"),
   timeZone: "America/Sao_Paulo",
   actsAlone: [],

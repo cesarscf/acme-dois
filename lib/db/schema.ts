@@ -85,6 +85,22 @@ export const organizationProfile = pgTable("organization_profile", {
     .$onUpdate(() => new Date()),
 })
 
+// How one member works, in their own words: what they attend and when. Agents read it to book
+// sessions with them; each member changes only their own.
+export const memberProfile = pgTable("member_profile", {
+  memberId: text("member_id")
+    .primaryKey()
+    .references(() => member.id, { onDelete: "cascade" }),
+  organizationId: text("organization_id")
+    .notNull()
+    .references(() => organization.id, { onDelete: "cascade" }),
+  about: text("about").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .notNull()
+    .defaultNow()
+    .$onUpdate(() => new Date()),
+})
+
 // `setup` is the one agent every organization starts with, which builds the rest of the team.
 export const agentKind = pgEnum("agent_kind", ["setup", "team"])
 

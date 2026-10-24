@@ -1,7 +1,7 @@
 import { and, eq, gt } from "drizzle-orm"
 import { db } from "../db"
 import { invitation, member as memberTable, organization, user } from "../db/schema"
-import type { Member } from "../member"
+import { type Member, manages } from "../member"
 
 // An invite is a link the member shares (there is no email sending), valid for 7 days. Whoever
 // opens it must sign in with the invited email to join; Better Auth checks that on accepting.
@@ -13,6 +13,7 @@ const normalized = (email: string) => email.trim().toLowerCase()
 
 // Invites an email to the member's organization, or renews its pending invite.
 export async function createInvite(member: Member, input: { email: string }, now = new Date()) {
+  if (!manages(member)) throw new InviteError("Só quem administra a clínica convida pessoas.")
   const email = normalized(input.email)
   const [already] = await db
     .select({ id: memberTable.id })

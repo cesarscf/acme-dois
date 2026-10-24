@@ -1,7 +1,8 @@
 import { z } from "zod"
 import { listAgents, findAgent } from "../organization/agents"
 import { createInvite, listPendingInvites } from "../organization/invites"
-import { findOrganizationProfile, saveOrganizationProfile } from "../organization/profile"
+import { type Member, manages } from "../member"
+import { findOrganizationProfile, saveMemberProfile, saveOrganizationProfile } from "../organization/profile"
 import { listTeam } from "../agenda/team"
 import { agendaTools, baseAgendaTools } from "./agenda-tools"
 import type { ProposedAgent, TeamCard } from "./cards"
@@ -17,6 +18,15 @@ const labelOf = new Map(agendaTools.map((tool) => [tool.name, tool.label]))
 
 const labels = (names: string[]) =>
   names.length ? names.map((name) => labelOf.get(name)).join(", ") : "nada"
+
+// Turns down what only who runs the organization does, naming whom the member can ask.
+async function requireManager(member: Member, what: string) {
+  if (manages(member)) return
+  const managers = (await listTeam(member.organizationId)).filter((teammate) => teammate.manages)
+  throw new ToolRefusal(
+    `Só quem administra a clínica ${what}: ${managers.map((teammate) => teammate.name).join(", ")}. Diga isso ao membro e ajude ele a descrever o que precisa, para contar a essa pessoa.`,
+  )
+}
 
 export const saveOrganizationProfileTool = defineTool({
   name: "save_organization_profile",
@@ -40,6 +50,7 @@ export const saveOrganizationProfileTool = defineTool({
       .describe("A duração usual de uma sessão, se o membro disse."),
   }),
   async run({ about, appointment_minutes }, { member }) {
+    await requireManager(member, "anota como a clínica trabalha")
     await saveOrganizationProfile(member, { about, appointmentMinutes: appointment_minutes })
     return {
       output: "Guardei. Mostrei ao membro num recibo.",
@@ -58,7 +69,7 @@ export const readOrganizationTool = defineTool({
   name: "read_organization",
   label: "Ver a equipe de agentes",
   description:
-    "Lê o que já está combinado: como a clínica trabalha, as pessoas da equipe e os convites pendentes, e os agentes, com função, ferramentas e o que fazem sozinhos.",
+    "Lê o que já está combinado: como a clínica trabalha; as pessoas da equipe, quem administra e como cada uma trabalha; os convites pendentes; e os agentes, com função, ferramentas e o que fazem sozinhos.",
   input: z.object({}),
   async run(_, { member }) {
     const [profile, agents, people, invites] = await Promise.all([
@@ -73,7 +84,7 @@ export const readOrganizationTool = defineTool({
     return {
       output: {
         profile: profile ?? null,
-        people: people.map((person) => person.name),
+        people: people.map((person) => ({ name: person.name, manages: person.manages, about: person.about })),
         pending_invites: invites.map((invite) => invite.email),
         agents: team.flatMap((agent) =>
           agent
@@ -124,6 +135,7 @@ export const proposeTeamTool = defineTool({
     .join(", ")}. Podem agir sozinhos só em: ${[...confirmable].join(", ")}.`,
   input: z.object({ agents: z.array(proposedAgent).min(1).max(5) }),
   async run({ agents }, { member }) {
+    await requireManager(member, "cria agentes")
     const team = await listAgents(member)
     const taken = new Set(team.map((agent) => agent.name.toLowerCase()))
     const looks: AgentLook[] = team.map(({ shape, color }) => ({ shape, color }))
@@ -186,6 +198,7 @@ export const chooseAgentLookTool = defineTool({
     "Mostra ao membro um card para escolher a forma e a cor do avatar de um agente da equipe (o id vem de read_organization). Ele escolhe no card, e a escolha chega numa próxima mensagem.",
   input: z.object({ agent_id: z.uuid() }),
   async run({ agent_id }, { member }) {
+    await requireManager(member, "muda a aparência dos agentes")
     const agent = await findAgent(member, agent_id)
     if (!agent || agent.kind !== "team") throw new ToolRefusal("Esse agente não é da equipe.")
     return {
@@ -211,6 +224,7 @@ export const inviteMemberTool = defineTool({
     email: z.email().describe("O e-mail da pessoa, que ela vai usar para entrar."),
   }),
   async run({ name, email }, { member }) {
+    await requireManager(member, "convida pessoas")
     const invite = await createInvite(member, { email })
     return {
       output: `Convite criado para ${invite.email}. Mostrei o link num card para o membro mandar a ${name}.`,
@@ -226,10 +240,35 @@ export const inviteMemberTool = defineTool({
   },
 })
 
+export const saveMyProfileTool = defineTool({
+  name: "save_my_profile",
+  label: "Anotar como você trabalha",
+  description:
+    "Guarda como o membro que fala com você trabalha, para os agentes marcarem sessões com ele. Só a ficha dele: nunca a de outra pessoa. Mande a ficha completa de novo a cada mudança: ela substitui a anterior.",
+  input: z.object({
+    about: z
+      .string()
+      .trim()
+      .min(1)
+      .max(1000)
+      .describe(
+        "Em tópicos curtos, como o membro contou: o que ele faz na clínica, o que atende, em quais dias e horários, e o que os agentes precisam saber para marcar com ele.",
+      ),
+  }),
+  async run({ about }, { member }) {
+    await saveMemberProfile(member, about)
+    return {
+      output: "Guardei. Mostrei ao membro num recibo.",
+      card: { type: "receipt", title: "Anotei como você trabalha", detail: about, status: "applied", undoable: false },
+    }
+  },
+})
+
 export const setupTools = [
   saveOrganizationProfileTool,
   readOrganizationTool,
   proposeTeamTool,
   chooseAgentLookTool,
   inviteMemberTool,
+  saveMyProfileTool,
 ]

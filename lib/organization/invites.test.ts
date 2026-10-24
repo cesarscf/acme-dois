@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { eq } from "drizzle-orm"
-import { createOrganization, resetDatabase } from "@/test/fixtures"
+import { createOrganization, joinOrganization, resetDatabase } from "@/test/fixtures"
 import { db } from "../db"
 import { invitation } from "../db/schema"
 import type { Member } from "../member"
@@ -66,4 +66,10 @@ test("listPendingInvites leaves out expired and other organizations' invites", a
   await createInvite(cesar, { email: "old@clinica.com" }, new Date(now.getTime() - 30 * 86_400_000))
   await createInvite(ana, { email: "theirs@clinica.com" }, now)
   expect((await listPendingInvites(cesar, now)).map((invite) => invite.email)).toEqual(["joana@clinica.com"])
+})
+
+test("only who runs the organization invites", async () => {
+  const joana = await joinOrganization(cesar.organizationId, "Joana")
+  await expect(createInvite(joana, { email: "bia@clinica.com" }, now)).rejects.toThrow(InviteError)
+  expect(await listPendingInvites(cesar, now)).toEqual([])
 })

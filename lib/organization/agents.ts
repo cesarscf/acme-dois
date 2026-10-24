@@ -3,7 +3,7 @@ import type { ProposedAgent } from "../agent/cards"
 import { type AgentLook, setupAgentLook } from "../agent/look"
 import { db } from "../db"
 import { agent } from "../db/schema"
-import type { Member } from "../member"
+import { type Member, manages } from "../member"
 
 export const setupAgent = { name: "Acme Bot", role: "Configura a sua equipe de agentes" }
 
@@ -54,6 +54,7 @@ export class AgentError extends Error {}
 
 // All of them or none, so a proposal never half applies.
 export async function createAgents(member: Member, agents: ProposedAgent[]) {
+  if (!manages(member)) throw new AgentError("Só quem administra a clínica cria agentes.")
   const names = new Set<string>()
   for (const proposed of agents) {
     const key = proposed.name.toLowerCase()
@@ -72,7 +73,9 @@ export async function createAgents(member: Member, agents: ProposedAgent[]) {
   }
 }
 
+// Only who runs the organization changes how an agent looks; for anyone else, nothing changes.
 export async function updateAgentLook(member: Member, id: string, look: AgentLook) {
+  if (!manages(member)) return false
   const [updated] = await db
     .update(agent)
     .set(look)
