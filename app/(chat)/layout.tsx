@@ -1,5 +1,6 @@
 import { AppSidebar } from "@/components/app-sidebar"
 import { ConversationsProvider } from "@/components/conversations"
+import { LiveRefresh } from "@/components/live-refresh"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { listConversations } from "@/lib/chat/conversation"
 import { getOrganizationName, requireMember } from "@/lib/dal"
@@ -25,6 +26,7 @@ export default async function ChatLayout({ children }: LayoutProps<"/">) {
         unread,
       }))}
     >
+      <LiveRefresh />
       <SidebarProvider>
         <AppSidebar organizationName={organizationName} memberName={member.name} />
         <SidebarInset className="h-svh">{children}</SidebarInset>

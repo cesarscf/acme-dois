@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk"
 import { and, asc, desc, eq, max, sql } from "drizzle-orm"
-import { applyRestores, cancelAppointment } from "../agenda/appointments"
+import { applyRestores, cancelAppointment, changesOfRestores } from "../agenda/appointments"
 import { listTeam } from "../agenda/team"
 import { agendaTools } from "../agent/agenda-tools"
 import type { AgentChoice, Card, CardAction, TeamCard } from "../agent/cards"
@@ -15,11 +15,13 @@ import { type Member, manages, organizationTimeZone } from "../member"
 import type { AgentLook } from "../agent/look"
 import { type Agent, AgentError, agentOrder, createAgents, listAgents, updateAgentLook } from "../organization/agents"
 import { findOrganizationProfile } from "../organization/profile"
+import { notifyChanges, type Via } from "./notices"
 
 const setupRegistry = createToolRegistry(setupTools)
 
-// What an agent works with: its prompt, the tools its charter gives it, and the turn's context.
-async function harnessFor(member: Member, agent: Agent, now: Date) {
+// What an agent works with: its prompt, the tools its charter gives it, and the turn's context. What
+// its tools change on the agenda, `via` says how, is told to whoever it affects.
+async function harnessFor(member: Member, agent: Agent, now: Date, via: Via) {
   if (agent.kind === "setup")
     return {
       system: setupPrompt,
@@ -39,6 +41,7 @@ async function harnessFor(member: Member, agent: Agent, now: Date) {
       timeZone: organizationTimeZone,
       actsAlone: agent.actsAlone,
       appointmentMinutes: profile?.appointmentMinutes ?? null,
+      changed: (changes) => notifyChanges({ actor: member, agentId: agent.id, via, now }, changes),
     } satisfies ToolContext,
   }
 }
@@ -187,7 +190,7 @@ export async function sendMessage(
   const [transcript, team, harness] = await Promise.all([
     transcriptOf(member, agent),
     listTeam(member.organizationId),
-    harnessFor(member, agent, now),
+    harnessFor(member, agent, now, "asked"),
   ])
   const asked: Anthropic.Beta.BetaMessageParam[] = [
     { role: "user", content: text },
@@ -251,12 +254,12 @@ async function accept(
 ): Promise<Omit<Outcome, "card"> & { status: Card["status"] } | undefined> {
   if (action.kind === "cancel") {
     const cancelled = await cancelAppointment(member, action.appointmentId, new Date(action.updatedAt))
-    return cancelled === "stale"
-      ? { status: "stale", detail: "Motivo: a sessão mudou depois que o agente perguntou." }
-      : { status: "accepted" }
+    if (cancelled === "stale") return { status: "stale", detail: "Motivo: a sessão mudou depois que o agente perguntou." }
+    await notifyChanges({ actor: member, agentId: agent.id, via: "confirmed", now }, [{ from: cancelled, to: null }])
+    return { status: "accepted" }
   }
   if (action.kind === "apply") {
-    const { tools, context } = await harnessFor(member, agent, now)
+    const { tools, context } = await harnessFor(member, agent, now, "confirmed")
     const { result, card, action: undo } = await tools.execute(
       { id: "confirmed", name: action.tool, input: action.input },
       { ...context, confirmed: true },
@@ -317,8 +320,10 @@ export async function actOnCard(
 
   let outcome: Outcome | undefined
   if (card.type === "receipt" && card.status === "applied" && choice === "undo" && action.kind === "undo") {
-    const restored = (await applyRestores(member, action.restores)) === "restored"
-    outcome = { card: { ...card, status: restored ? "undone" : "stale" } }
+    const restored = await applyRestores(member, action.restores)
+    if (restored !== "stale")
+      await notifyChanges({ actor: member, agentId: agent.id, via: "undone", now }, changesOfRestores(restored))
+    outcome = { card: { ...card, status: restored === "stale" ? "stale" : "undone" } }
   }
   if (card.type === "approval" && card.status === "pending") {
     const decided =

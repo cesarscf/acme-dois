@@ -1,6 +1,6 @@
 import type Anthropic from "@anthropic-ai/sdk"
 import { z } from "zod"
-import { AgendaError } from "../agenda/appointments"
+import { type AgendaChange, AgendaError } from "../agenda/appointments"
 import type { Member } from "../member"
 import { AgentError } from "../organization/agents"
 import { InviteError } from "../organization/invites"
@@ -17,6 +17,8 @@ export type ToolContext = {
   appointmentMinutes: number | null
   // Set when a member confirmed this very call.
   confirmed?: boolean
+  // Told what a tool changed on the agenda, once it is changed, so whoever it affects hears of it.
+  changed?: (changes: AgendaChange[]) => Promise<void>
 }
 
 // What a tool hands back: `output` goes to the model; a card, to the member.

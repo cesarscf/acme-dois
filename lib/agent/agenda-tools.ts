@@ -158,6 +158,7 @@ export const createAppointmentTool = defineTool({
       durationMinutes: minutesOf(input, context),
       kind: input.kind,
     })
+    await context.changed?.([{ from: null, to: created }])
     const names = await teamNames(member)
     return {
       output: { appointment_id: created.id, note: shownNote },
@@ -202,6 +203,7 @@ export const rescheduleAppointmentTool = defineTool({
       startsAt,
       ...(input.member_id && { memberId: input.member_id }),
     })
+    await context.changed?.([{ from: cancelled, to: rebooked }])
     const [customer, names] = await Promise.all([
       findCustomer(member, rebooked.customerId),
       teamNames(member),
@@ -239,8 +241,9 @@ export const assignAppointmentTool = defineTool({
       ],
     }
   },
-  async run(input, { member, timeZone }) {
+  async run(input, { member, timeZone, changed }) {
     const { from, updated } = await assignAppointment(member, input.appointment_id, input.member_id)
+    await changed?.([{ from, to: updated }])
     const [customer, names] = await Promise.all([
       findCustomer(member, updated.customerId),
       teamNames(member),

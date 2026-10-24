@@ -10,6 +10,10 @@ export const defaultAppointmentMinutes = 50
 
 export type Appointment = typeof appointment.$inferSelect
 
+// One change to a session: booked (no `from`), cancelled (no `to`), or moved to another time or
+// member. A rescheduling is one change, from the cancelled session to the one booked in its place.
+export type AgendaChange = { from: Appointment | null; to: Appointment | null }
+
 const inOrganization = (member: Member, id: string) =>
   and(eq(appointment.id, id), eq(appointment.organizationId, member.organizationId))
 
@@ -165,24 +169,37 @@ export async function cancelAppointment(
   return cancelled ?? "stale"
 }
 
-// Puts every restore back, or none: `stale` when any appointment changed since.
+// Puts every restore back, or none: `stale` when any appointment changed since. Otherwise each
+// appointment as it was and as it is now.
 export async function applyRestores(member: Member, restores: Restore[]) {
   try {
-    await db.transaction(async (tx) => {
+    return await db.transaction(async (tx) => {
+      const restored: { before: Appointment; after: Appointment }[] = []
       for (const { id, updatedAt, restore } of restores) {
-        const [restored] = await tx
-          .update(appointment)
-          .set(restore)
-          .where(and(inOrganization(member, id), eq(appointment.updatedAt, new Date(updatedAt))))
-          .returning({ id: appointment.id })
-        if (!restored) throw new StaleRestore()
+        const atVersion = and(inOrganization(member, id), eq(appointment.updatedAt, new Date(updatedAt)))
+        const [before] = await tx.select().from(appointment).where(atVersion).for("update")
+        const [after] = before ? await tx.update(appointment).set(restore).where(atVersion).returning() : []
+        if (!before || !after) throw new StaleRestore()
+        restored.push({ before, after })
       }
+      return restored
     })
-    return "restored"
   } catch (error) {
     if (error instanceof StaleRestore) return "stale"
     throw error
   }
+}
+
+// What undoing changed, as changes: a session cancelled and another put back is one rescheduling.
+export function changesOfRestores(restored: { before: Appointment; after: Appointment }[]): AgendaChange[] {
+  const isScheduled = (version: Appointment) => version.status === "scheduled"
+  const lost = restored.filter(({ before, after }) => isScheduled(before) && !isScheduled(after)).map(({ before }) => before)
+  const gained = restored.filter(({ before, after }) => !isScheduled(before) && isScheduled(after)).map(({ after }) => after)
+  const moved = restored
+    .filter(({ before, after }) => isScheduled(before) && isScheduled(after))
+    .map(({ before, after }) => ({ from: before, to: after }))
+  if (lost.length === 1 && gained.length === 1) return [{ from: lost[0], to: gained[0] }, ...moved]
+  return [...lost.map((from) => ({ from, to: null })), ...gained.map((to) => ({ from: null, to })), ...moved]
 }
 
 class StaleRestore extends Error {}

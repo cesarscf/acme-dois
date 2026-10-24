@@ -5,6 +5,7 @@ import {
   applyRestores,
   assignAppointment,
   cancelAppointment,
+  changesOfRestores,
   createAppointment,
   findAppointment,
   listAppointments,
@@ -125,7 +126,10 @@ describe("applyRestores", () => {
       restoreOf(rebooked, { status: "cancelled" }),
       restoreOf(cancelled, { status: "scheduled" }),
     ])
-    expect(result).toBe("restored")
+    expect(result).not.toBe("stale")
+    expect(changesOfRestores(result === "stale" ? [] : result)).toMatchObject([
+      { from: { id: rebooked.id, status: "scheduled" }, to: { id: original.id, status: "scheduled" } },
+    ])
     expect((await findAppointment(ana, original.id))?.status).toBe("scheduled")
     expect((await findAppointment(ana, rebooked.id))?.status).toBe("cancelled")
   })

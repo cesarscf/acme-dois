@@ -42,6 +42,7 @@ app/(chat)/agents/[agentId]        uma conversa com um agente → components/cha
 app/actions.ts                     Server Actions: enviar mensagem, agir num card
 lib/dal.ts                         sessão + membro da organization ativa (server-only)
 lib/chat/conversation.ts           mensagens e transcrição por membro e agente; aplica os cards
+lib/chat/notices.ts                avisos de mudança na agenda para quem atende
 lib/agent/run-turn.ts              loop: modelo → ferramentas → modelo, até terminar
 lib/agent/tool-registry.ts         valida entradas (zod) e troca por um card de confirmação o que o agente não faz sozinho
 lib/agent/agenda-tools.ts          ferramentas dos agentes de agenda
@@ -55,6 +56,7 @@ lib/agenda/*                       clientes, sessões e membros, sempre no escop
 Ferramentas de agenda: `find_customers`, `create_customer`, `read_agenda`, `create_appointment`, `reschedule_appointment`, `assign_appointment` e `cancel_appointment`. Todo agente de agenda recebe as duas de leitura (`find_customers`, `read_agenda`), e só as três de mudança podem ser feitas sozinhas.
 
 - Cada mudança aparece num **recibo com Desfazer**. Desfazer só vale enquanto a sessão está como o recibo a deixou.
+- **Quem atende fica sabendo.** Quando um agente marca, remarca, troca quem atende, cancela ou desfaz a pedido de alguém, quem atende a sessão (antes e depois) recebe um aviso na própria conversa com aquele agente, escrito pelo app (`lib/chat/notices.ts`). Quem pediu não recebe, e sessões que já passaram não geram aviso. O aviso entra na transcrição do agente com quem foi avisado, então ele sabe do que se trata se a pessoa responder. A página aberta se atualiza a cada 15 segundos (`components/live-refresh.tsx`).
 - **Cancelar nunca é automático**: a ferramenta só cria um card de confirmação; quem cancela é o membro. Se a sessão mudar antes, a confirmação não aplica nada.
 - O que o membro decide num card entra na transcrição, e a Lia fica sabendo no turno seguinte.
 - A transcrição só cresce, para reaproveitar o cache de prompt. O contexto de cada turno (agora, quem fala, equipe) vai numa mensagem `system` com `clear_at: "next_user_message"`.

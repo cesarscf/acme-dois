@@ -10,6 +10,7 @@ import type { Member } from "../member"
 import { type Agent, createAgents, findAgent, listAgents } from "../organization/agents"
 import { saveMemberProfile, saveOrganizationProfile } from "../organization/profile"
 import { actOnCard, listConversations, listMessages, markRead, sendMessage } from "./conversation"
+import { noticeNote } from "./notices"
 
 // Friday 2026-10-23, 09:00 in São Paulo.
 const now = new Date("2026-10-23T12:00:00Z")
@@ -466,6 +467,89 @@ describe("actOnCard", () => {
     const { original, cardMessage } = await askToCancel(lia)
     expect(await actOnCard(bia, lia, cardMessage.id, "accept")).toBeUndefined()
     expect((await findAppointment(ana, original.id))?.status).toBe("scheduled")
+  })
+})
+
+describe("agenda notices", () => {
+  const bookForBia = (lia: Agent) =>
+    sendMessage(ana, lia, "Marca a Carla com a Bia às 15h", {
+      model: scriptedModel(
+        uses({ name: "create_appointment", input: { ...createAt15, customer_id: carla.id, member_id: bia.id } }),
+        says("Marquei."),
+      ).model,
+      now,
+    })
+  const lastOf = async (member: Member, agent: Agent) => (await shown(member, agent)).at(-1)
+
+  test("the agent tells whoever attends a session it booked, in their own conversation", async () => {
+    const lia = await teamAgent()
+    await bookForBia(lia)
+    const notice = "A pedido de Ana, marquei uma sessão para você: Carla, sex 23/10, 15:00 (50 min)."
+    expect(await shown(bia, lia)).toEqual([
+      { author: "agent", text: introText(lia, "Bia"), card: null },
+      { author: "agent", text: notice, card: null },
+    ])
+    // Ana has the receipt; nobody tells her what she asked for.
+    expect((await shown(ana, lia)).filter((row) => row.text?.startsWith("A pedido"))).toEqual([])
+    expect((await listConversations(bia)).find((row) => row.id === lia.id)).toMatchObject({ unread: true })
+
+    // The agent knows what it told Bia when she answers.
+    const { model, requests } = scriptedModel(says("Combinado."))
+    await sendMessage(bia, lia, "Não posso nesse horário", { model, now })
+    expect(requests[0].messages.slice(0, 2)).toEqual([
+      { role: "user", content: noticeNote(notice) },
+      { role: "user", content: "Não posso nesse horário" },
+    ])
+  })
+
+  test("nobody is told of a session booked for whoever asked", async () => {
+    const lia = await teamAgent()
+    const { model } = scriptedModel(
+      uses({ name: "create_appointment", input: { ...createAt15, customer_id: carla.id } }),
+      says("Marquei."),
+    )
+    await sendMessage(ana, lia, "Marca a Carla às 15h", { model, now })
+    expect(await shown(bia, lia)).toHaveLength(1)
+  })
+
+  test("passing a session on tells both who gave it up and who takes it", async () => {
+    const lia = await teamAgent({ tools: ["read_agenda", "assign_appointment"], actsAlone: ["assign_appointment"] })
+    const caio = await joinOrganization(ana.organizationId, "Caio")
+    const original = await createAppointment(ana, { customerId: carla.id, memberId: bia.id, startsAt: new Date("2026-10-23T17:00:00Z") })
+    const { model } = scriptedModel(
+      uses({ name: "assign_appointment", input: { appointment_id: original.id, member_id: caio.id } }),
+      says("Agora com o Caio."),
+    )
+    await sendMessage(ana, lia, "Passa a Carla para o Caio", { model, now })
+    expect((await lastOf(bia, lia))?.text).toBe("A pedido de Ana, passei uma sessão sua para Caio: Carla, sex 23/10, 14:00.")
+    expect((await lastOf(caio, lia))?.text).toBe(
+      "A pedido de Ana, passei para você uma sessão que era de Bia: Carla, sex 23/10, 14:00.",
+    )
+  })
+
+  test("a cancellation is told once a member confirms it", async () => {
+    const lia = await teamAgent()
+    const original = await createAppointment(ana, { customerId: carla.id, memberId: bia.id, startsAt: new Date("2026-10-23T17:00:00Z") })
+    const { model } = scriptedModel(
+      uses({ name: "cancel_appointment", input: { appointment_id: original.id, reason: null } }),
+      says("Confirma?"),
+    )
+    await sendMessage(ana, lia, "Cancela a Carla", { model, now })
+    expect(await shown(bia, lia)).toHaveLength(1)
+
+    const approval = (await listMessages(ana, lia)).find((row) => row.card)!
+    await actOnCard(ana, lia, approval.id, "accept", { now })
+    expect((await lastOf(bia, lia))?.text).toBe("Com a confirmação de Ana, cancelei uma sessão sua: Carla, sex 23/10, 14:00.")
+  })
+
+  test("undoing tells whoever the undone change had told", async () => {
+    const lia = await teamAgent()
+    await bookForBia(lia)
+    const receipt = (await listMessages(ana, lia)).find((row) => row.card)!
+    await actOnCard(ana, lia, receipt.id, "undo", { now })
+    expect((await lastOf(bia, lia))?.text).toBe(
+      "Desfazendo uma mudança a pedido de Ana, cancelei uma sessão sua: Carla, sex 23/10, 15:00.",
+    )
   })
 })
 
