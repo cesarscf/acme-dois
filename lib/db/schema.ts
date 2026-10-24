@@ -14,6 +14,7 @@ import {
   type AnyPgColumn,
 } from "drizzle-orm/pg-core"
 import type { Card, CardAction } from "../agent/cards"
+import { avatarShapes } from "../agent/look"
 import { member, organization } from "./auth-schema"
 
 export * from "./auth-schema"
@@ -87,6 +88,8 @@ export const organizationProfile = pgTable("organization_profile", {
 // `setup` is the one agent every organization starts with, which builds the rest of the team.
 export const agentKind = pgEnum("agent_kind", ["setup", "team"])
 
+export const avatarShape = pgEnum("avatar_shape", avatarShapes)
+
 export const agent = pgTable(
   "agent",
   {
@@ -97,6 +100,8 @@ export const agent = pgTable(
     kind: agentKind("kind").notNull(),
     name: text("name").notNull(),
     role: text("role").notNull(),
+    shape: avatarShape("shape").notNull().default("round"),
+    color: text("color").notNull().default("#2f80ff"),
     // Its standing instructions: what it does for the organization and how.
     instructions: text("instructions").notNull(),
     // The tools it may use, and those of them it uses without asking a member first.

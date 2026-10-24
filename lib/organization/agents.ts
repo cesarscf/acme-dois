@@ -1,5 +1,6 @@
 import { and, asc, eq, sql } from "drizzle-orm"
 import type { ProposedAgent } from "../agent/cards"
+import { type AgentLook, setupAgentLook } from "../agent/look"
 import { db } from "../db"
 import { agent } from "../db/schema"
 import type { Member } from "../member"
@@ -12,14 +13,29 @@ export type Agent = typeof agent.$inferSelect
 export async function createSetupAgent(organizationId: string) {
   await db
     .insert(agent)
-    .values({ organizationId, kind: "setup", ...setupAgent, instructions: "", tools: [], actsAlone: [] })
+    .values({
+      organizationId,
+      kind: "setup",
+      ...setupAgent,
+      ...setupAgentLook,
+      instructions: "",
+      tools: [],
+      actsAlone: [],
+    })
     .onConflictDoNothing()
 }
 
 // The setup agent first, then the team in the order it was built.
 export async function listAgents(member: Member) {
   return db
-    .select({ id: agent.id, kind: agent.kind, name: agent.name, role: agent.role })
+    .select({
+      id: agent.id,
+      kind: agent.kind,
+      name: agent.name,
+      role: agent.role,
+      shape: agent.shape,
+      color: agent.color,
+    })
     .from(agent)
     .where(eq(agent.organizationId, member.organizationId))
     .orderBy(sql`${agent.kind} = 'setup' desc`, asc(agent.createdAt))
@@ -54,4 +70,13 @@ export async function createAgents(member: Member, agents: ProposedAgent[]) {
       throw new AgentError("Já existe um agente com um desses nomes.")
     throw failure
   }
+}
+
+export async function updateAgentLook(member: Member, id: string, look: AgentLook) {
+  const [updated] = await db
+    .update(agent)
+    .set(look)
+    .where(and(eq(agent.id, id), eq(agent.organizationId, member.organizationId)))
+    .returning({ id: agent.id })
+  return Boolean(updated)
 }

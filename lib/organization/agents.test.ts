@@ -1,8 +1,17 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { createOrganization, resetDatabase } from "@/test/fixtures"
 import type { ProposedAgent } from "../agent/cards"
+import { setupAgentLook } from "../agent/look"
 import type { Member } from "../member"
-import { AgentError, createAgents, createSetupAgent, findAgent, listAgents, setupAgent } from "./agents"
+import {
+  AgentError,
+  createAgents,
+  createSetupAgent,
+  findAgent,
+  listAgents,
+  setupAgent,
+  updateAgentLook,
+} from "./agents"
 
 const lia: ProposedAgent = {
   name: "Lia",
@@ -10,6 +19,8 @@ const lia: ProposedAgent = {
   instructions: "Marca e remarca sessões.",
   tools: ["find_customers", "read_agenda", "create_appointment"],
   actsAlone: ["create_appointment"],
+  shape: "square",
+  color: "#9b6bff",
 }
 
 let ana: Member
@@ -22,7 +33,7 @@ beforeEach(async () => {
 test("every organization has exactly one setup agent", async () => {
   await createSetupAgent(ana.organizationId)
   expect(await listAgents(ana)).toEqual([
-    { id: expect.any(String), kind: "setup", name: setupAgent.name, role: setupAgent.role },
+    { id: expect.any(String), kind: "setup", name: setupAgent.name, role: setupAgent.role, ...setupAgentLook },
   ])
 })
 
@@ -58,4 +69,12 @@ describe("createAgents", () => {
     await createAgents(ana, [lia])
     expect(await createAgents(other, [lia])).toHaveLength(1)
   })
+})
+
+test("updateAgentLook changes an agent's look only inside its organization", async () => {
+  const [created] = await createAgents(ana, [lia])
+  const [other] = await createOrganization("Outra")
+  expect(await updateAgentLook(other, created.id, { shape: "blob", color: "#2ea603" })).toBe(false)
+  expect(await updateAgentLook(ana, created.id, { shape: "blob", color: "#2ea603" })).toBe(true)
+  expect(await findAgent(ana, created.id)).toMatchObject({ shape: "blob", color: "#2ea603" })
 })
