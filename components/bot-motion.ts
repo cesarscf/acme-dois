@@ -1,9 +1,18 @@
 // The mascots come alive as AbacatePay's marketplace bots do: their eyes follow the pointer for a
-// moment after it moves, then wander; they blink now and then, sometimes twice; and they hop happily
-// while the element marked data-bot-hover around them is hovered or focused from the keyboard. One animation frame
-// drives every bot on screen, and none moves for whoever prefers reduced motion.
+// moment after it moves, then wander; they blink now and then, sometimes twice; and while the element
+// marked data-bot-hover around them is hovered or focused from the keyboard they turn happy, with a
+// move picked at random: a hop, a dance, a squish or a spring. One animation frame drives every bot
+// on screen, and none moves for whoever prefers reduced motion.
 
 export type BotMood = "idle" | "happy"
+
+// What a happy mascot does: hop, dance, get squished or spring up (globals.css draws each).
+const moves = ["hop", "dance", "squish", "spring"] as const
+
+function pickMove(rand: () => number, last?: string) {
+  const choices = moves.filter((move) => move !== last)
+  return choices[Math.floor(rand() * choices.length)]
+}
 
 type Bot = {
   el: SVGSVGElement
@@ -135,8 +144,15 @@ export function animateBot(el: SVGSVGElement, { seed, mood, greet = false }: { s
   byElement.set(el, bot)
   watch(el)
 
-  const host = el.closest("[data-bot-hover]")
-  const feel = (felt: BotMood) => (el.dataset.mood = mood ?? felt)
+  // What it reacts to: the element marked data-bot-hover around it, or else the mascot itself, so
+  // every mascot in the app turns happy under the pointer.
+  const host = el.closest("[data-bot-hover]") ?? el
+  // Each time it turns happy, it picks one of its moves, never the same twice in a row.
+  const feel = (felt: BotMood) => {
+    const next = mood ?? felt
+    if (next === "happy" && el.dataset.mood !== "happy") el.dataset.move = pickMove(rand, el.dataset.move)
+    el.dataset.mood = next
+  }
   const happy = () => feel("happy")
   const idle = () => feel("idle")
   // Focus counts only from the keyboard: a click leaves it on what was clicked, and the mascot
@@ -144,23 +160,23 @@ export function animateBot(el: SVGSVGElement, { seed, mood, greet = false }: { s
   const focused = (event: Event) => {
     if ((event.target as Element).matches(":focus-visible")) happy()
   }
-  host?.addEventListener("pointerenter", happy)
-  host?.addEventListener("pointerleave", idle)
-  host?.addEventListener("focusin", focused)
-  host?.addEventListener("focusout", idle)
+  host.addEventListener("pointerenter", happy)
+  host.addEventListener("pointerleave", idle)
+  host.addEventListener("focusin", focused)
+  host.addEventListener("focusout", idle)
   feel("idle")
   let greeting: ReturnType<typeof setTimeout> | undefined
   if (greet) {
-    el.dataset.mood = "happy"
+    feel("happy")
     greeting = setTimeout(idle, 1400)
   }
 
   return () => {
     clearTimeout(greeting)
-    host?.removeEventListener("pointerenter", happy)
-    host?.removeEventListener("pointerleave", idle)
-    host?.removeEventListener("focusin", focused)
-    host?.removeEventListener("focusout", idle)
+    host.removeEventListener("pointerenter", happy)
+    host.removeEventListener("pointerleave", idle)
+    host.removeEventListener("focusin", focused)
+    host.removeEventListener("focusout", idle)
     observer?.unobserve(el)
     bots.delete(bot)
     byElement.delete(el)

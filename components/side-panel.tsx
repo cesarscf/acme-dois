@@ -32,6 +32,8 @@ export function SidePanel({
       <div
         className={cn("relative grid h-[200px] shrink-0 place-items-center", Array.isArray(color) ? "panel-hero-group" : "panel-hero")}
         style={washOf(color)}
+        // The whole top is hovered at once, so a group's mascots move together.
+        data-bot-hover=""
       >
         {hero}
         <button

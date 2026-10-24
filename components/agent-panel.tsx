@@ -124,8 +124,8 @@ function Groups({ agent }: { agent: AgentProfile }) {
   )
 }
 
-// The avatar, with a pencil over it for who may change it: a popover with the shapes and the
-// colors, each saved as it's picked.
+// The avatar, with a pencil at its top right for who may change it: a popover with the shapes and
+// the colors, each saved as it's picked.
 function LookPicker({ agent }: { agent: AgentProfile }) {
   const [look, setLook] = useState(agent.look)
   const [openedWith, setOpenedWith] = useState(agent.look)
@@ -138,15 +138,17 @@ function LookPicker({ agent }: { agent: AgentProfile }) {
 
   return (
     <Popover onOpenChange={(open) => open && setOpenedWith(look)}>
-      <PopoverTrigger
-        aria-label="Mudar a aparência"
-        className="group relative grid place-items-center rounded-full outline-none"
-      >
+      <span className="relative">
         <AgentAvatar look={look} size={112} />
-        <span className="absolute inset-2 grid place-items-center rounded-full bg-black/0 text-white opacity-0 transition group-hover:bg-black/45 group-hover:opacity-100 group-data-popup-open:bg-black/45 group-data-popup-open:opacity-100">
-          <PencilIcon className="size-6" />
-        </span>
-      </PopoverTrigger>
+        {/* A small round pencil at the top right, as on a profile picture, over nothing else. */}
+        <PopoverTrigger
+          aria-label="Mudar a aparência"
+          title="Mudar a aparência"
+          className="absolute top-1 -right-1 grid size-9 place-items-center rounded-full border border-line bg-surface text-ink shadow-sm outline-none hover:bg-soft focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-soft"
+        >
+          <PencilIcon className="size-4" />
+        </PopoverTrigger>
+      </span>
       <PopoverContent className="w-[340px] gap-0 rounded-3xl p-0" sideOffset={10}>
         <div className="flex items-center justify-between border-b border-line px-4 py-3">
           <span className="rounded-full bg-soft px-3 py-1 text-[14px] font-medium text-ink">Mascote</span>

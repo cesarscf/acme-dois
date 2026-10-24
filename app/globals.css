@@ -256,11 +256,28 @@
   opacity: 0;
   transition: opacity 0.25s;
 }
+/* Happy, it plays the move components/bot-motion.ts picked for it. */
 .bot[data-mood="happy"] .bot__body {
   animation: bot-hop 0.75s cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
 }
 .bot[data-mood="happy"] .bot__shadow {
   animation: bot-hop-shadow 0.75s cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
+}
+.bot[data-mood="happy"][data-move="dance"] .bot__body {
+  animation: bot-dance 0.8s ease-in-out infinite;
+}
+.bot[data-mood="happy"][data-move="squish"] .bot__body {
+  animation: bot-squish 0.9s ease-out infinite;
+}
+.bot[data-mood="happy"][data-move="dance"] .bot__shadow,
+.bot[data-mood="happy"][data-move="squish"] .bot__shadow {
+  animation: none;
+}
+.bot[data-mood="happy"][data-move="spring"] .bot__body {
+  animation: bot-spring 1s cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
+}
+.bot[data-mood="happy"][data-move="spring"] .bot__shadow {
+  animation: bot-hop-shadow 1s cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
 }
 .bot[data-mood="happy"] .bot__eye-open {
   opacity: 0;
@@ -297,6 +314,59 @@
   80% {
     translate: 0;
     scale: 1.04 0.96;
+  }
+}
+@keyframes bot-dance {
+  0%,
+  100% {
+    rotate: -8deg;
+    translate: 0 0;
+  }
+  25% {
+    rotate: 0deg;
+    translate: 0 -6px;
+  }
+  50% {
+    rotate: 8deg;
+    translate: 0 0;
+  }
+  75% {
+    rotate: 0deg;
+    translate: 0 -6px;
+  }
+}
+@keyframes bot-squish {
+  0%,
+  100% {
+    scale: 1 1;
+  }
+  35% {
+    scale: 1.28 0.62;
+  }
+  55% {
+    scale: 0.9 1.14;
+  }
+  75% {
+    scale: 1.05 0.96;
+  }
+}
+@keyframes bot-spring {
+  0%,
+  100% {
+    translate: 0 0;
+    scale: 1;
+  }
+  30% {
+    translate: 0 6px;
+    scale: 1.08 0.86;
+  }
+  55% {
+    translate: 0 -12px;
+    scale: 0.94 1.08;
+  }
+  75% {
+    translate: 0 0;
+    scale: 1.04 0.97;
   }
 }
 @keyframes bot-hop-shadow {
