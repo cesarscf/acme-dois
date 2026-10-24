@@ -155,7 +155,7 @@ function noteOf(member: Member, card: Card, detail?: string) {
 }
 
 // `detail` tells the agent why nothing was done, or what was.
-type Outcome = { card: Card; detail?: string; followUp?: AgentReply }
+type Outcome = { card: Card; detail?: string; followUps?: AgentReply[] }
 
 // Applies a confirmed card's action, or says why it couldn't.
 async function accept(
@@ -173,9 +173,20 @@ async function accept(
   if (action.kind === "create_agents") {
     try {
       const created = await createAgents(member, action.agents)
+      // Each new agent's look card opens right away, so it never waits for the member's next
+      // message, where it would read as a change to an agent that already exists.
       return {
         status: "accepted",
-        detail: `Agentes criados: ${created.map((agent) => `${agent.name} (id ${agent.id})`).join(", ")}.`,
+        detail: `Agentes criados: ${created.map((agent) => `${agent.name} (id ${agent.id})`).join(", ")}. O app já mostrou o card de aparência de cada um.`,
+        followUps: created.map((agent) => ({
+          card: {
+            type: "look" as const,
+            agentName: agent.name,
+            look: { shape: agent.shape, color: agent.color },
+            status: "pending" as const,
+          },
+          action: { kind: "look" as const, agentId: agent.id },
+        })),
       }
     } catch (failure) {
       if (failure instanceof AgentError) return { status: "stale", detail: `Motivo: ${failure.message}` }
@@ -192,7 +203,7 @@ async function accept(
     return {
       status: "accepted",
       detail: `Resultado: ${result.content}`,
-      followUp: card ? { card, action: undo } : undefined,
+      followUps: card ? [{ card, action: undo }] : [],
     }
   }
   return undefined
@@ -241,7 +252,8 @@ export async function actOnCard(
       agentId: agent.id,
       entry: { role: "user", content: noteOf(member, updated, outcome.detail) },
     })
-    if (outcome.followUp) await tx.insert(message).values(agentMessages(member, agent, [outcome.followUp], now))
+    if (outcome.followUps?.length)
+      await tx.insert(message).values(agentMessages(member, agent, outcome.followUps, now))
   })
   return updated
 }

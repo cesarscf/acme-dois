@@ -64,7 +64,7 @@ export async function createAgents(member: Member, agents: ProposedAgent[]) {
     return await db
       .insert(agent)
       .values(agents.map((proposed) => ({ organizationId: member.organizationId, kind: "team" as const, ...proposed })))
-      .returning({ id: agent.id, name: agent.name })
+      .returning({ id: agent.id, name: agent.name, shape: agent.shape, color: agent.color })
   } catch (failure) {
     if ((failure as { cause?: { code?: string } }).cause?.code === "23505")
       throw new AgentError("Já existe um agente com um desses nomes.")

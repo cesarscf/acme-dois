@@ -94,11 +94,19 @@ describe("the setup agent", () => {
     const team = await listAgents(ana)
     expect(team.map((agent) => agent.name)).toEqual(["Acme Bot", "Lia"])
 
-    // Told the new agents' ids, so it can show their look cards next.
-    const { model: next, requests } = scriptedModel(says("Agora a aparência."))
+    // The new agent's look card opens with the confirmation, not on the member's next message.
+    const cards = (await listMessages(ana, setup)).flatMap((row) => (row.card ? [row.card] : []))
+    expect(cards.at(-1)).toEqual({
+      type: "look",
+      agentName: "Lia",
+      look: { shape: team[1].shape, color: team[1].color },
+      status: "pending",
+    })
+
+    const { model: next, requests } = scriptedModel(says("Já aparecem ao lado."))
     await sendMessage(ana, setup, "Feito", { model: next, now })
     expect(requests[0].messages.at(-3)?.content).toBe(
-      `[Aviso do Acme, não escrito pelo membro] Ana confirmou "Criar este agente?". Agentes criados: Lia (id ${team[1].id}).`,
+      `[Aviso do Acme, não escrito pelo membro] Ana confirmou "Criar este agente?". Agentes criados: Lia (id ${team[1].id}). O app já mostrou o card de aparência de cada um.`,
     )
   })
 
