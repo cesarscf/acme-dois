@@ -15,8 +15,16 @@ export type ReceiptCard = {
 export type ApprovalCard = {
   type: "approval"
   title: string
-  // A row about an agent shows as its charter: avatar, name, role and what it does.
-  rows: { label: string; value: string; look?: AgentLook; details?: { label: string; value: string }[] }[]
+  rows: { label: string; value: string }[]
+  status: "pending" | "accepted" | "declined" | "stale"
+}
+
+// The setup agent's proposal: each new agent's charter, with the name and look the member settles
+// in the card itself before confirming them all at once.
+export type TeamCard = {
+  type: "team"
+  title: string
+  agents: (AgentLook & { name: string; role: string; details: { label: string; value: string }[] })[]
   status: "pending" | "accepted" | "declined" | "stale"
 }
 
@@ -28,7 +36,7 @@ export type LookCard = {
   status: "pending" | "chosen"
 }
 
-export type Card = ReceiptCard | ApprovalCard | LookCard
+export type Card = ReceiptCard | ApprovalCard | TeamCard | LookCard
 
 // Puts `restore` back on an appointment while it is still at `updatedAt`.
 export type Restore = {
@@ -36,6 +44,9 @@ export type Restore = {
   updatedAt: string
   restore: { status?: "scheduled" | "cancelled"; memberId?: string | null }
 }
+
+// What the member settled for each proposed agent, in the proposal's order.
+export type AgentChoice = AgentLook & { name: string }
 
 // An agent the setup agent proposes, as the member confirms it.
 export type ProposedAgent = AgentLook & {

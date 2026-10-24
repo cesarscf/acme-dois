@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
+import type { AgentChoice } from "@/lib/agent/cards"
 import { type AgentLook, avatarColors, avatarShapes } from "@/lib/agent/look"
 import { createAnthropicModel, type Model } from "@/lib/agent/model"
 import { actOnCard, sendMessage } from "@/lib/chat/conversation"
@@ -21,23 +22,30 @@ export async function sendMessageAction(agentId: string, input: string) {
   revalidatePath(`/agents/${agent.id}`)
 }
 
+const look = z.object({ shape: z.enum(avatarShapes), color: z.enum(avatarColors) })
+
 const cardChoice = z.object({
   messageId: z.uuid(),
   choice: z.enum(["undo", "accept", "decline", "choose"]),
-  look: z.object({ shape: z.enum(avatarShapes), color: z.enum(avatarColors) }).optional(),
+  look: look.optional(),
+  // The name and look settled for each agent of a team proposal.
+  team: z.array(look.extend({ name: z.string().trim().min(1).max(40) })).max(5).optional(),
 })
 
 export async function actOnCardAction(
   agentId: string,
   messageId: string,
   choice: string,
-  look?: AgentLook,
+  settled?: { look?: AgentLook; team?: AgentChoice[] },
 ) {
   const member = await requireMember()
   const agent = await findAgent(member, agentId)
-  const input = cardChoice.safeParse({ messageId, choice, look })
+  const input = cardChoice.safeParse({ messageId, choice, ...settled })
   if (!agent || !input.success) return
-  await actOnCard(member, agent, input.data.messageId, input.data.choice, { look: input.data.look })
+  await actOnCard(member, agent, input.data.messageId, input.data.choice, {
+    look: input.data.look,
+    team: input.data.team,
+  })
   // Confirming a team or a look changes the list beside every conversation.
   revalidatePath("/", "layout")
 }

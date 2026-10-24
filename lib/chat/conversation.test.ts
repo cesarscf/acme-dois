@@ -77,7 +77,7 @@ describe("the setup agent", () => {
     expect((await shown(ana, setup)).map((row) => row.author)).toEqual(["agent", "member", "agent"])
   })
 
-  test("builds the team once the member confirms its proposal", async () => {
+  test("builds the team with the name and look the member settled in the card", async () => {
     const proposal = {
       name: "Lia",
       role: "Secretária da agenda",
@@ -88,26 +88,58 @@ describe("the setup agent", () => {
     const { model } = scriptedModel(uses({ name: "propose_team", input: { agents: [proposal] } }), says("Confere?"))
     await sendMessage(ana, setup, "Pode montar", { model, now })
     const card = (await listMessages(ana, setup)).find((row) => row.card)!
+    expect(card.card).toMatchObject({ type: "team", status: "pending", agents: [{ name: "Lia" }] })
     expect((await listAgents(ana)).map((agent) => agent.name)).toEqual(["Acme Bot"])
 
-    expect(await actOnCard(ana, setup, card.id, "accept")).toMatchObject({ status: "accepted" })
-    const team = await listAgents(ana)
-    expect(team.map((agent) => agent.name)).toEqual(["Acme Bot", "Lia"])
-
-    // The new agent's look card opens with the confirmation, not on the member's next message.
-    const cards = (await listMessages(ana, setup)).flatMap((row) => (row.card ? [row.card] : []))
-    expect(cards.at(-1)).toEqual({
-      type: "look",
-      agentName: "Lia",
-      look: { shape: team[1].shape, color: team[1].color },
-      status: "pending",
+    const settled = { name: "Nina", shape: "blob", color: "#ff5cae" } as const
+    expect(await actOnCard(ana, setup, card.id, "accept", { team: [settled] })).toMatchObject({
+      status: "accepted",
+      agents: [settled],
     })
+    const [, nina] = await listAgents(ana)
+    expect(nina).toMatchObject({ name: "Nina", shape: "blob", color: "#ff5cae", role: "Secretária da agenda" })
+    // Everything was confirmed at once: no look card follows.
+    expect((await listMessages(ana, setup)).filter((row) => row.card)).toHaveLength(1)
 
-    const { model: next, requests } = scriptedModel(says("Já aparecem ao lado."))
+    const { model: next, requests } = scriptedModel(says("Já aparece ao lado."))
     await sendMessage(ana, setup, "Feito", { model: next, now })
     expect(requests[0].messages.at(-3)?.content).toBe(
-      `[Aviso do Acme, não escrito pelo membro] Ana confirmou "Criar este agente?". Agentes criados: Lia (id ${team[1].id}). O app já mostrou o card de aparência de cada um.`,
+      `[Aviso do Acme, não escrito pelo membro] Ana confirmou "Criar este agente?". Agentes criados, com o nome e a aparência que o membro escolheu: Nina (id ${nina.id}, forma blob, cor #ff5cae).`,
     )
+  })
+
+  test("keeps the proposed name and look when the member changed nothing", async () => {
+    const proposal = { name: "Lia", role: "Secretária", instructions: "Marca.", tools: ["read_agenda"], acts_alone: [] }
+    const { model } = scriptedModel(uses({ name: "propose_team", input: { agents: [proposal] } }), says("Confere?"))
+    await sendMessage(ana, setup, "Pode montar", { model, now })
+    const card = (await listMessages(ana, setup)).find((row) => row.card)!
+    await actOnCard(ana, setup, card.id, "accept")
+    expect((await listAgents(ana))[1]).toMatchObject({ name: "Lia", shape: "square", color: "#2f80ff" })
+  })
+
+  test("declining the proposal creates nobody", async () => {
+    const proposal = { name: "Lia", role: "Secretária", instructions: "Marca.", tools: ["read_agenda"], acts_alone: [] }
+    const { model } = scriptedModel(uses({ name: "propose_team", input: { agents: [proposal] } }), says("Confere?"))
+    await sendMessage(ana, setup, "Pode montar", { model, now })
+    const card = (await listMessages(ana, setup)).find((row) => row.card)!
+    expect(await actOnCard(ana, setup, card.id, "decline")).toMatchObject({ status: "declined" })
+    expect(await listAgents(ana)).toHaveLength(1)
+  })
+
+  test("nothing is created when the settled names clash", async () => {
+    const proposal = { name: "Lia", role: "Secretária", instructions: "Marca.", tools: ["read_agenda"], acts_alone: [] }
+    const { model } = scriptedModel(
+      uses({ name: "propose_team", input: { agents: [proposal, { ...proposal, name: "Tom" }] } }),
+      says("Confere?"),
+    )
+    await sendMessage(ana, setup, "Pode montar", { model, now })
+    const card = (await listMessages(ana, setup)).find((row) => row.card)!
+    const team = [
+      { name: "Nina", shape: "blob", color: "#ff5cae" },
+      { name: "nina", shape: "round", color: "#2ea603" },
+    ] as const
+    expect(await actOnCard(ana, setup, card.id, "accept", { team: [...team] })).toMatchObject({ status: "stale" })
+    expect(await listAgents(ana)).toHaveLength(1)
   })
 
   test("sets an agent's look from the look card, once", async () => {

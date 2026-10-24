@@ -3,7 +3,7 @@ import { and, asc, eq } from "drizzle-orm"
 import { applyRestores, cancelAppointment } from "../agenda/appointments"
 import { listTeam } from "../agenda/team"
 import { agendaTools } from "../agent/agenda-tools"
-import type { Card, CardAction } from "../agent/cards"
+import type { AgentChoice, Card, CardAction, TeamCard } from "../agent/cards"
 import type { Model } from "../agent/model"
 import { introText, setupPrompt, teamPrompt, turnContext, welcomeText } from "../agent/prompt"
 import { type AgentReply, runTurn, unanswered } from "../agent/run-turn"
@@ -170,29 +170,6 @@ async function accept(
       ? { status: "stale", detail: "Motivo: a sessão mudou depois que o agente perguntou." }
       : { status: "accepted" }
   }
-  if (action.kind === "create_agents") {
-    try {
-      const created = await createAgents(member, action.agents)
-      // Each new agent's look card opens right away, so it never waits for the member's next
-      // message, where it would read as a change to an agent that already exists.
-      return {
-        status: "accepted",
-        detail: `Agentes criados: ${created.map((agent) => `${agent.name} (id ${agent.id})`).join(", ")}. O app já mostrou o card de aparência de cada um.`,
-        followUps: created.map((agent) => ({
-          card: {
-            type: "look" as const,
-            agentName: agent.name,
-            look: { shape: agent.shape, color: agent.color },
-            status: "pending" as const,
-          },
-          action: { kind: "look" as const, agentId: agent.id },
-        })),
-      }
-    } catch (failure) {
-      if (failure instanceof AgentError) return { status: "stale", detail: `Motivo: ${failure.message}` }
-      throw failure
-    }
-  }
   if (action.kind === "apply") {
     const { tools, context } = await harnessFor(member, agent, now)
     const { result, card, action: undo } = await tools.execute(
@@ -209,13 +186,40 @@ async function accept(
   return undefined
 }
 
+// Creates the proposed agents with the names and looks the member settled in the card, or says why
+// it couldn't. The card then shows them as they were created.
+async function createTeam(
+  member: Member,
+  card: TeamCard,
+  action: Extract<CardAction, { kind: "create_agents" }>,
+  choices: AgentChoice[] | undefined,
+): Promise<Outcome> {
+  const settled = action.agents.map((proposed, index) => ({ ...proposed, ...choices?.[index] }))
+  try {
+    const created = await createAgents(member, settled)
+    return {
+      card: {
+        ...card,
+        agents: card.agents.map((shown, index) => ({ ...shown, ...choices?.[index] })),
+        status: "accepted",
+      },
+      detail: `Agentes criados, com o nome e a aparência que o membro escolheu: ${created
+        .map((agent) => `${agent.name} (id ${agent.id}, forma ${agent.shape}, cor ${agent.color})`)
+        .join(", ")}.`,
+    }
+  } catch (failure) {
+    if (failure instanceof AgentError) return { card: { ...card, status: "stale" }, detail: `Motivo: ${failure.message}` }
+    throw failure
+  }
+}
+
 // A member acts on one of an agent's cards in their own conversation with it.
 export async function actOnCard(
   member: Member,
   agent: Agent,
   messageId: string,
   choice: CardChoice,
-  { now = new Date(), look }: { now?: Date; look?: AgentLook } = {},
+  { now = new Date(), look, team }: { now?: Date; look?: AgentLook; team?: AgentChoice[] } = {},
 ) {
   const [found] = await db
     .select({ card: message.card, action: message.action })
@@ -237,6 +241,10 @@ export async function actOnCard(
           ? await accept(member, agent, action, now)
           : undefined
     if (decided) outcome = { ...decided, card: { ...card, status: decided.status } as Card }
+  }
+  if (card.type === "team" && card.status === "pending" && action.kind === "create_agents") {
+    if (choice === "decline") outcome = { card: { ...card, status: "declined" } }
+    if (choice === "accept") outcome = await createTeam(member, card, action, team)
   }
   if (card.type === "look" && card.status === "pending" && choice === "choose" && look && action.kind === "look") {
     if (await updateAgentLook(member, action.agentId, look))

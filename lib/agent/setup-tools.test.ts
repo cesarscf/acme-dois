@@ -57,13 +57,14 @@ describe("propose_team", () => {
   test("only proposes: a pending card, with every agent able to find customers and read the agenda", async () => {
     const execution = await run("propose_team", { agents: [lia] })
     expect(execution.card).toEqual({
-      type: "approval",
+      type: "team",
       title: "Criar este agente?",
-      rows: [
+      agents: [
         {
-          label: "Lia",
-          value: "Secretária da agenda",
-          look: { shape: "square", color: "#2f80ff" },
+          name: "Lia",
+          role: "Secretária da agenda",
+          shape: "square",
+          color: "#2f80ff",
           details: [
             { label: "O que faz", value: "Você marca e remarca as sessões." },
             { label: "Sozinho", value: "Marcar sessões" },

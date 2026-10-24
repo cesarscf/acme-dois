@@ -3,8 +3,8 @@
 import { useTransition } from "react"
 import { actOnCardAction } from "@/app/actions"
 import { LookCard } from "@/components/look-card"
+import { TeamCard } from "@/components/team-card"
 import {
-  CharterHead,
   KeyValues,
   MemberBubble,
   QuestionCard,
@@ -21,6 +21,7 @@ export function MessageCard({ agentId, messageId, card }: Props) {
     startTransition(() => actOnCardAction(agentId, messageId, choice))
 
   if (card.type === "look") return <LookCard agentId={agentId} messageId={messageId} card={card} />
+  if (card.type === "team") return <TeamCard agentId={agentId} messageId={messageId} card={card} />
   if (card.type === "receipt") return <Receipt card={card} pending={pending} onUndo={() => act("undo")} />
   return <Approval card={card} pending={pending} onChoose={act} />
 }
@@ -66,30 +67,12 @@ type ApprovalProps = {
 // Salte asks in two cards: what will happen, then "Confirma?" with lettered answers. Answered, the
 // question fades and the answer shows as the member's bubble.
 function Approval({ card, pending, onChoose }: ApprovalProps) {
-  const charters = card.rows.filter((row) => row.look)
-  const plain = card.rows.filter((row) => !row.look)
   const answered = card.status !== "pending"
   return (
     <>
-      {charters.map((row) => (
-        <SalteCard key={row.label} className="p-4">
-          <CharterHead look={row.look!} title={`Ficha de ${row.label}`} subtitle={row.value} />
-          {row.details?.length ? (
-            <KeyValues
-              className="mt-3.5"
-              rows={row.details.map((detail) => ({
-                label: detail.label,
-                value: <span className="line-clamp-4">{detail.value}</span>,
-              }))}
-            />
-          ) : null}
-        </SalteCard>
-      ))}
-      {plain.length ? (
-        <SalteCard className="p-4">
-          <KeyValues rows={plain} />
-        </SalteCard>
-      ) : null}
+      <SalteCard className="p-4">
+        <KeyValues rows={card.rows} />
+      </SalteCard>
       <QuestionCard
         question={card.title}
         answered={answered}

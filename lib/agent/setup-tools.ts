@@ -2,7 +2,7 @@ import { z } from "zod"
 import { listAgents, findAgent } from "../organization/agents"
 import { findOrganizationProfile, saveOrganizationProfile } from "../organization/profile"
 import { agendaTools, baseAgendaTools } from "./agenda-tools"
-import type { ApprovalCard, ProposedAgent } from "./cards"
+import type { ProposedAgent, TeamCard } from "./cards"
 import { type AgentLook, nextLook } from "./look"
 import { defineTool, ToolRefusal } from "./tool-registry"
 
@@ -88,7 +88,12 @@ export const readOrganizationTool = defineTool({
 })
 
 const proposedAgent = z.object({
-  name: z.string().trim().min(1).max(40).describe("Um nome curto de pessoa, como Lia."),
+  name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(40)
+    .describe("O nome que o membro escolheu, ou um nome curto de pessoa que você sugere, como Lia."),
   role: z.string().trim().min(1).max(80).describe("O cargo, como Secretária da agenda."),
   instructions: z
     .string()
@@ -125,7 +130,7 @@ export const proposeTeamTool = defineTool({
       const missing = agent.acts_alone.filter((tool) => !tools.includes(tool))
       if (missing.length)
         throw new ToolRefusal(`${agent.name} age sozinho em ${missing.join(", ")} sem ter a ferramenta.`)
-      // The member picks the look later, in a card; until then each gets one the team isn't using.
+      // A look the team isn't using, for the member to keep or change in the card.
       const look = nextLook(looks)
       looks.push(look)
       return {
@@ -137,15 +142,16 @@ export const proposeTeamTool = defineTool({
         ...look,
       }
     })
-    const card: ApprovalCard = {
-      type: "approval",
+    const card: TeamCard = {
+      type: "team",
       title: proposed.length === 1 ? "Criar este agente?" : "Montar esta equipe?",
-      rows: proposed.map((agent) => {
+      agents: proposed.map((agent) => {
         const asks = agent.tools.filter((tool) => confirmable.has(tool) && !agent.actsAlone.includes(tool))
         return {
-          label: agent.name,
-          value: agent.role,
-          look: { shape: agent.shape, color: agent.color },
+          name: agent.name,
+          role: agent.role,
+          shape: agent.shape,
+          color: agent.color,
           details: [
             { label: "O que faz", value: agent.instructions },
             { label: "Sozinho", value: labels(agent.actsAlone) },
@@ -156,7 +162,8 @@ export const proposeTeamTool = defineTool({
       status: "pending",
     }
     return {
-      output: "Mostrei a proposta num card. Não diga que criou: a decisão do membro chega depois.",
+      output:
+        "Mostrei a proposta num card, onde o membro confere, ajusta o nome e escolhe a aparência de cada agente antes de confirmar. Não diga que criou: a decisão chega depois.",
       card,
       action: { kind: "create_agents", agents: proposed },
     }
