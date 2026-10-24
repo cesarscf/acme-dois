@@ -3,6 +3,7 @@ import { listTeam } from "../agenda/team"
 import { db } from "../db"
 import { agent as agentTable, chatGroup, chatGroupAgent, chatGroupMember, groupMessage, member as memberTable } from "../db/schema"
 import { type Member, manages } from "../member"
+import { groupLooks } from "../agent/look"
 import { type Agent, agentOrder } from "./agents"
 
 // Groups: who is in each one. The general group has the whole team and every team agent; any
@@ -27,22 +28,49 @@ const visibleTo = (member: Member) =>
 
 const groupOrder = [desc(chatGroup.general), asc(chatGroup.createdAt)]
 
-// The groups the member is in that have this agent: the general group has every team agent.
+// The groups the member is in that have this agent: the general group has every team agent. Each
+// with how it looks, its agents then its people, all read at once.
 export async function listAgentGroups(member: Member, agent: Pick<Agent, "id" | "kind">) {
   if (agent.kind !== "team") return []
-  return db
-    .select({ id: chatGroup.id, name: chatGroup.name, general: chatGroup.general })
-    .from(chatGroup)
-    .where(
-      and(
-        visibleTo(member),
-        or(
-          eq(chatGroup.general, true),
-          sql`exists (select 1 from ${chatGroupAgent} where ${chatGroupAgent.groupId} = ${chatGroup.id} and ${chatGroupAgent.agentId} = ${agent.id})`,
+  const inOrganization = sql`${chatGroup.organizationId} = ${member.organizationId}`
+  const [groups, agentRows, memberRows, agents, team] = await Promise.all([
+    db
+      .select({ id: chatGroup.id, name: chatGroup.name, general: chatGroup.general })
+      .from(chatGroup)
+      .where(
+        and(
+          visibleTo(member),
+          or(
+            eq(chatGroup.general, true),
+            sql`exists (select 1 from ${chatGroupAgent} where ${chatGroupAgent.groupId} = ${chatGroup.id} and ${chatGroupAgent.agentId} = ${agent.id})`,
+          ),
         ),
-      ),
-    )
-    .orderBy(...groupOrder)
+      )
+      .orderBy(...groupOrder),
+    db
+      .select({ groupId: chatGroupAgent.groupId, agentId: chatGroupAgent.agentId })
+      .from(chatGroupAgent)
+      .innerJoin(chatGroup, eq(chatGroup.id, chatGroupAgent.groupId))
+      .where(inOrganization),
+    db
+      .select({ groupId: chatGroupMember.groupId, memberId: chatGroupMember.memberId })
+      .from(chatGroupMember)
+      .innerJoin(chatGroup, eq(chatGroup.id, chatGroupMember.groupId))
+      .where(inOrganization),
+    teamAgents(member.organizationId),
+    listTeam(member.organizationId),
+  ])
+  return groups.map((group) => ({
+    ...group,
+    looks: groupLooks(
+      agents
+        .filter((candidate) => group.general || agentRows.some((row) => row.groupId === group.id && row.agentId === candidate.id))
+        .map(({ shape, color }) => ({ shape, color })),
+      team
+        .filter((teammate) => group.general || memberRows.some((row) => row.groupId === group.id && row.memberId === teammate.id))
+        .map(({ id }) => id),
+    ),
+  }))
 }
 
 export async function listGroups(member: Member) {

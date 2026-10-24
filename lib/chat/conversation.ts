@@ -76,25 +76,22 @@ async function welcomeFor(member: Member, arrival: Arrival) {
 // first message, written by the app from what the agent is and never stored, so each member,
 // including those who join later, finds it there.
 export async function listMessages(member: Member, agent: Agent) {
-  const rows = await db
-    .select({
-      id: message.id,
-      author: message.author,
-      text: message.text,
-      card: message.card,
-      createdAt: message.createdAt,
-    })
-    .from(message)
-    .where(inConversation(member, agent))
-    .orderBy(asc(message.createdAt))
   const arrival: Arrival = member.joinedAt > agent.createdAt ? "joined" : "before"
-  const first = {
-    id: `first-${agent.id}`,
-    author: "agent" as const,
-    text: agent.kind === "setup" ? await welcomeFor(member, arrival) : introText(agent, member.name, arrival),
-    card: null,
-    createdAt: agent.createdAt,
-  }
+  const [rows, opening] = await Promise.all([
+    db
+      .select({
+        id: message.id,
+        author: message.author,
+        text: message.text,
+        card: message.card,
+        createdAt: message.createdAt,
+      })
+      .from(message)
+      .where(inConversation(member, agent))
+      .orderBy(asc(message.createdAt)),
+    agent.kind === "setup" ? welcomeFor(member, arrival) : introText(agent, member.name, arrival),
+  ])
+  const first = { id: `first-${agent.id}`, author: "agent" as const, text: opening, card: null, createdAt: agent.createdAt }
   return [first, ...rows]
 }
 

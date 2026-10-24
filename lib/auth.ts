@@ -11,6 +11,8 @@ import { createSetupAgent } from "./organization/agents"
 export const auth = betterAuth({
   database: drizzleAdapter(db, { provider: "pg", schema }),
   emailAndPassword: { enabled: true },
+  // The session is read from a signed cookie for 5 minutes instead of the database on every page.
+  session: { cookieCache: { enabled: true, maxAge: 5 * 60 } },
   databaseHooks: {
     session: {
       create: {

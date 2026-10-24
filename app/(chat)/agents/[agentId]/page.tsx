@@ -3,7 +3,6 @@ import { Chat } from "@/components/chat"
 import { agendaTools, cancelAppointmentTool } from "@/lib/agent/agenda-tools"
 import { suggestionsFor } from "@/lib/agent/suggestions"
 import { listMessages } from "@/lib/chat/conversation"
-import { listGroupSummaries } from "@/lib/chat/groups"
 import { requireMember } from "@/lib/dal"
 import { manages } from "@/lib/member"
 import { findAgent } from "@/lib/organization/agents"
@@ -13,11 +12,7 @@ export default async function AgentPage({ params }: PageProps<"/agents/[agentId]
   const [{ agentId }, member] = await Promise.all([params, requireMember()])
   const agent = await findAgent(member, agentId)
   if (!agent) notFound()
-  const [messages, groups, summaries] = await Promise.all([
-    listMessages(member, agent),
-    listAgentGroups(member, agent),
-    listGroupSummaries(member),
-  ])
+  const [messages, groups] = await Promise.all([listMessages(member, agent), listAgentGroups(member, agent)])
 
   // The charter as the panel lists it: what the agent may use, does alone and asks first.
   const labels = (names: string[]) => agendaTools.filter((tool) => names.includes(tool.name)).map((tool) => tool.label)
@@ -48,11 +43,7 @@ export default async function AgentPage({ params }: PageProps<"/agents/[agentId]
         canEditProfile: manages(member) && agent.kind === "team",
         charter: agent.kind === "team" ? charter : null,
         instructions: agent.kind === "team" ? agent.instructions : null,
-        groups: groups.map(({ id, name }) => ({
-          id,
-          name,
-          looks: summaries.find((summary) => summary.id === id)?.looks ?? [],
-        })),
+        groups: groups.map(({ id, name, looks }) => ({ id, name, looks })),
       }}
     />
   )
