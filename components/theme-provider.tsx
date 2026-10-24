@@ -13,6 +13,9 @@ function ThemeProvider({
       defaultTheme="system"
       enableSystem
       disableTransitionOnChange
+      // The script sets the theme before the first paint, from the server's HTML. Rendered again in
+      // the browser it never runs, and React warns about it unless it is marked as data.
+      scriptProps={typeof window === "undefined" ? undefined : { type: "application/json" }}
       {...props}
     >
       <ThemeHotkey />
