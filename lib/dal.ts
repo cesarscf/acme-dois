@@ -3,10 +3,14 @@ import { and, eq } from "drizzle-orm"
 import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { cache } from "react"
+import { listTeam } from "./agenda/team"
 import { auth } from "./auth"
 import { db } from "./db"
 import { member } from "./db/schema"
 import type { Member } from "./member"
+
+// The organization's people, read once per request though the layout and the page both list them.
+export const getTeam = cache((organizationId: string) => listTeam(organizationId))
 
 export const getSession = cache(async () => auth.api.getSession({ headers: await headers() }))
 

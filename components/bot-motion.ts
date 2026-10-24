@@ -59,9 +59,8 @@ function onPointerMove(event: PointerEvent) {
   wake()
 }
 
-function step(bot: Bot, now: number) {
-  if (now - pointer.at < followFor) {
-    const box = bot.el.getBoundingClientRect()
+function step(bot: Bot, now: number, box: DOMRect | undefined) {
+  if (box) {
     const dx = pointer.x - (box.left + box.width / 2)
     const dy = pointer.y - (box.top + box.height / 2)
     const distance = Math.hypot(dx, dy) || 1
@@ -91,13 +90,13 @@ function step(bot: Bot, now: number) {
 
 function tick(now: number) {
   frame = 0
-  let any = false
-  for (const bot of bots) {
-    if (!bot.visible) continue
-    any = true
-    step(bot, now)
-  }
-  if (any) frame = requestAnimationFrame(tick)
+  const shown = [...bots].filter((bot) => bot.visible)
+  // Every box is read before any style is written: reading after a write would make the browser
+  // lay the page out again for each bot.
+  const following = now - pointer.at < followFor
+  const boxes = shown.map((bot) => (following ? bot.el.getBoundingClientRect() : undefined))
+  shown.forEach((bot, i) => step(bot, now, boxes[i]))
+  if (shown.length) frame = requestAnimationFrame(tick)
 }
 
 function wake() {

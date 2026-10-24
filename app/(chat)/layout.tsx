@@ -6,8 +6,7 @@ import { ShellProvider } from "@/components/shell"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { listConversations } from "@/lib/chat/conversation"
 import { listGroupSummaries } from "@/lib/chat/groups"
-import { getSession, requireMember } from "@/lib/dal"
-import { listTeam } from "@/lib/agenda/team"
+import { getSession, getTeam, requireMember } from "@/lib/dal"
 import { manages, organizationTimeZone } from "@/lib/member"
 import { lastMessageLabel } from "@/lib/time"
 
@@ -16,7 +15,7 @@ export default async function ChatLayout({ children }: LayoutProps<"/">) {
   const [conversations, groups, team, session] = await Promise.all([
     listConversations(member),
     listGroupSummaries(member),
-    listTeam(member.organizationId),
+    getTeam(member.organizationId),
     getSession(),
   ])
   const setup = conversations.find((conversation) => conversation.kind === "setup")!
