@@ -1,7 +1,7 @@
 // How an agent looks: a shape and a color, drawn in the style of the AbacatePay marketplace bots.
 // Shared by server and client.
 
-export const avatarShapes = ["drop", "square", "round", "blob"] as const
+export const avatarShapes = ["drop", "square", "round", "blob", "hexagon", "star", "capsule"] as const
 export type AvatarShape = (typeof avatarShapes)[number]
 
 export const avatarColors = [

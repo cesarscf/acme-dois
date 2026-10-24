@@ -9,6 +9,9 @@ const shapeNames: Record<AvatarShape, string> = {
   square: "Quadrado",
   round: "Redondo",
   blob: "Bolha",
+  hexagon: "Hexágono",
+  star: "Estrela",
+  capsule: "Cápsula",
 }
 
 const colorNames: Record<(typeof avatarColors)[number], string> = {

@@ -24,6 +24,22 @@ const shapes: Record<AvatarShape, { body: string; shine: [number, number]; eyes:
     shine: [30, 30],
     eyes: 40,
   },
+  // Drawn here in the same style, with rounded corners.
+  hexagon: {
+    body: "M39.6 10.0Q50.0 4.0 60.4 10.0L80.3 21.5Q90.7 27.5 90.7 39.5L90.7 62.5Q90.7 74.5 80.3 80.5L60.4 92.0Q50.0 98.0 39.6 92.0L19.7 80.5Q9.3 74.5 9.3 62.5L9.3 39.5Q9.3 27.5 19.7 21.5Z",
+    shine: [30, 32],
+    eyes: 42,
+  },
+  star: {
+    body: "M43.5 15.6Q50.0 8.0 56.5 15.6L62.3 22.5Q68.8 30.1 78.1 33.9L86.4 37.4Q95.7 41.2 90.4 49.7L85.7 57.4Q80.4 65.9 79.7 75.9L79.0 84.9Q78.2 94.8 68.5 92.5L59.7 90.4Q50.0 88.0 40.3 90.4L31.5 92.5Q21.8 94.8 21.0 84.9L20.3 75.9Q19.6 65.9 14.3 57.4L9.6 49.7Q4.3 41.2 13.6 37.4L21.9 33.9Q31.2 30.1 37.7 22.5Z",
+    shine: [40, 36],
+    eyes: 47,
+  },
+  capsule: {
+    body: "M30 18H70C86 18 96 32 96 51C96 70 86 84 70 84H30C14 84 4 70 4 51C4 32 14 18 30 18Z",
+    shine: [24, 34],
+    eyes: 41,
+  },
 }
 
 export function AgentAvatar({ look, size = 40, className }: { look: AgentLook; size?: number; className?: string }) {

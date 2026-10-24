@@ -22,6 +22,13 @@
       "when": 1792801142702,
       "tag": "0002_agent_look",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1792806606179,
+      "tag": "0003_more_avatar_shapes",
+      "breakpoints": true
     }
   ]
 }
