@@ -7,6 +7,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -156,6 +157,21 @@ export const message = pgTable(
     createdAt,
   },
   (table) => [index("message_conversation_idx").on(table.memberId, table.agentId, table.createdAt)],
+)
+
+// How far a member has read their conversation with an agent; newer agent messages are unread.
+export const conversationRead = pgTable(
+  "conversation_read",
+  {
+    memberId: text("member_id")
+      .notNull()
+      .references(() => member.id, { onDelete: "cascade" }),
+    agentId: uuid("agent_id")
+      .notNull()
+      .references(() => agent.id, { onDelete: "cascade" }),
+    readAt: timestamp("read_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.memberId, table.agentId] })],
 )
 
 // What the model saw, in order, so each turn resends the same prefix and hits the cache.

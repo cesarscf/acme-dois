@@ -1,10 +1,11 @@
 "use client"
 
 import { ArrowDownIcon } from "lucide-react"
-import { useOptimistic, useState, useTransition } from "react"
-import { sendMessageAction } from "@/app/actions"
+import { useEffect, useState } from "react"
+import { markReadAction, sendMessageAction } from "@/app/actions"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { ChatMessage } from "@/components/chat-message"
+import { useConversations } from "@/components/conversations"
 import { PromptForm } from "@/components/prompt-form"
 import { BornDivider, SystemEvent, Thinking } from "@/components/salte"
 import { Suggestions } from "@/components/suggestions"
@@ -26,27 +27,51 @@ type Props = {
   suggestions: string[]
 }
 
+// Sending and reading stay out of transitions: React holds every navigation until a pending
+// transition ends, so the member couldn't open another conversation while the agent answers.
 export function Chat({ agent, messages, suggestions }: Props) {
-  const [shown, addSent] = useOptimistic(messages, (state, text: string): ChatMessageData[] => [
-    ...state,
-    { id: `sending-${state.length}`, author: "member", text, card: null, createdAt: new Date() },
-  ])
-  const [working, startTransition] = useTransition()
+  // What the member sent, until the conversation comes back from the server with it.
+  const [sent, setSent] = useState<{ after: ChatMessageData[]; messages: ChatMessageData[] }>({
+    after: messages,
+    messages: [],
+  })
+  const shown = sent.after === messages ? [...messages, ...sent.messages] : messages
+  const { conversations, working: answering, startWorking } = useConversations()
+  // Held above the page, so it's still answering when the member comes back.
+  const working = answering.has(agent.id)
   const [failed, setFailed] = useState(false)
   const started = shown.some((message) => message.author === "member")
   const waitingForMember = shown.some((message) => message.card?.status === "pending")
   const status = working ? "Trabalhando..." : waitingForMember ? "Esperando você" : agent.role
 
-  function send(text: string) {
+  // Whatever the agent wrote is read once it shows here.
+  const unread = conversations.some((conversation) => conversation.id === agent.id && conversation.unread)
+  const lastAt = messages.at(-1)?.createdAt.toISOString()
+  useEffect(() => {
+    if (unread && lastAt) void markReadAction(agent.id, lastAt)
+  }, [agent.id, unread, lastAt])
+
+  async function send(text: string) {
     setFailed(false)
-    startTransition(async () => {
-      addSent(text)
-      try {
-        await sendMessageAction(agent.id, text)
-      } catch {
-        setFailed(true)
-      }
-    })
+    const done = startWorking(agent.id)
+    const message: ChatMessageData = {
+      id: `sending-${shown.length}`,
+      author: "member",
+      text,
+      card: null,
+      createdAt: new Date(),
+    }
+    setSent((current) => ({
+      after: messages,
+      messages: [...(current.after === messages ? current.messages : []), message],
+    }))
+    try {
+      await sendMessageAction(agent.id, text)
+    } catch {
+      setFailed(true)
+    } finally {
+      done()
+    }
   }
 
   return (

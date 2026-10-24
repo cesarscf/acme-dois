@@ -61,3 +61,16 @@ export function appointmentLabel(startsAt: Date, timeZone: string) {
   const weekday = weekdays[new Date(`${day}T12:00:00Z`).getUTCDay()]
   return `${weekday} ${day.slice(8, 10)}/${day.slice(5, 7)}, ${timeIn(startsAt, timeZone)}`
 }
+
+const weekdayNames = ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"]
+
+// When a conversation last moved, as a chat list shows it: "14:05" today, "Ontem", the weekday
+// within the week, and "23/10" or "23/10/25" before that.
+export function lastMessageLabel(instant: Date, now: Date, timeZone: string) {
+  const [day, today] = [dayIn(instant, timeZone), dayIn(now, timeZone)]
+  if (day === today) return timeIn(instant, timeZone)
+  if (day === addDays(today, -1)) return "Ontem"
+  if (day > addDays(today, -7)) return weekdayNames[new Date(`${day}T12:00:00Z`).getUTCDay()]
+  const date = `${day.slice(8, 10)}/${day.slice(5, 7)}`
+  return day.slice(0, 4) === today.slice(0, 4) ? date : `${date}/${day.slice(2, 4)}`
+}

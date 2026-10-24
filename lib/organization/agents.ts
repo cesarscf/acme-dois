@@ -26,6 +26,8 @@ export async function createSetupAgent(organizationId: string) {
 }
 
 // The setup agent first, then the team in the order it was built.
+export const agentOrder = [sql`${agent.kind} = 'setup' desc`, asc(agent.createdAt)]
+
 export async function listAgents(member: Member) {
   return db
     .select({
@@ -38,7 +40,7 @@ export async function listAgents(member: Member) {
     })
     .from(agent)
     .where(eq(agent.organizationId, member.organizationId))
-    .orderBy(sql`${agent.kind} = 'setup' desc`, asc(agent.createdAt))
+    .orderBy(...agentOrder)
 }
 
 export async function findAgent(member: Member, id: string) {

@@ -1,5 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk"
-import { and, asc, eq } from "drizzle-orm"
+import { and, asc, desc, eq, max, sql } from "drizzle-orm"
 import { applyRestores, cancelAppointment } from "../agenda/appointments"
 import { listTeam } from "../agenda/team"
 import { agendaTools } from "../agent/agenda-tools"
@@ -10,10 +10,10 @@ import { type AgentReply, runTurn, unanswered } from "../agent/run-turn"
 import { setupTools } from "../agent/setup-tools"
 import { createToolRegistry, type ToolContext } from "../agent/tool-registry"
 import { db } from "../db"
-import { message, transcriptEntry } from "../db/schema"
+import { agent as agentTable, conversationRead, message, transcriptEntry } from "../db/schema"
 import { type Member, manages, organizationTimeZone } from "../member"
 import type { AgentLook } from "../agent/look"
-import { type Agent, AgentError, createAgents, listAgents, updateAgentLook } from "../organization/agents"
+import { type Agent, AgentError, agentOrder, createAgents, listAgents, updateAgentLook } from "../organization/agents"
 import { findOrganizationProfile } from "../organization/profile"
 
 const setupRegistry = createToolRegistry(setupTools)
@@ -84,6 +84,76 @@ export async function listMessages(member: Member, agent: Agent) {
 }
 
 export type ChatMessage = Awaited<ReturnType<typeof listMessages>>[number]
+
+// The first line of the message every conversation opens with, which needs nothing but the agent.
+const openingLine = (member: Member, agent: Agent) => {
+  const arrival: Arrival = member.joinedAt > agent.createdAt ? "joined" : "before"
+  const text = agent.kind === "setup" ? welcomeText(member.name, arrival) : introText(agent, member.name, arrival)
+  return text.split("\n")[0]
+}
+
+// Each of the member's conversations as the list beside them shows it: the agent, its last message
+// and whether the agent wrote since the member last read it. The opening message counts as the
+// agent's, written when the agent was created.
+export async function listConversations(member: Member) {
+  const [agents, lasts, lastFromAgent, reads] = await Promise.all([
+    db.select().from(agentTable).where(eq(agentTable.organizationId, member.organizationId)).orderBy(...agentOrder),
+    db
+      .selectDistinctOn([message.agentId], {
+        agentId: message.agentId,
+        author: message.author,
+        text: message.text,
+        card: message.card,
+        createdAt: message.createdAt,
+      })
+      .from(message)
+      .where(eq(message.memberId, member.id))
+      .orderBy(message.agentId, desc(message.createdAt)),
+    db
+      .select({ agentId: message.agentId, at: max(message.createdAt) })
+      .from(message)
+      .where(and(eq(message.memberId, member.id), eq(message.author, "agent")))
+      .groupBy(message.agentId),
+    db
+      .select({ agentId: conversationRead.agentId, readAt: conversationRead.readAt })
+      .from(conversationRead)
+      .where(eq(conversationRead.memberId, member.id)),
+  ])
+  const byAgent = <T extends { agentId: string }>(rows: T[]) => new Map(rows.map((row) => [row.agentId, row]))
+  const [lastOf, agentWroteAt, readAt] = [byAgent(lasts), byAgent(lastFromAgent), byAgent(reads)]
+
+  return agents.map((agent) => {
+    const last = lastOf.get(agent.id)
+    const said = last ? (last.card ? aboutOf(last.card) : (last.text ?? "")) : openingLine(member, agent)
+    const wroteAt = agentWroteAt.get(agent.id)?.at ?? agent.createdAt
+    const read = readAt.get(agent.id)?.readAt
+    return {
+      id: agent.id,
+      kind: agent.kind,
+      name: agent.name,
+      role: agent.role,
+      shape: agent.shape,
+      color: agent.color,
+      preview: `${last?.author === "member" ? "Você: " : ""}${said.replace(/\s+/g, " ").trim()}`,
+      lastAt: last?.createdAt ?? agent.createdAt,
+      unread: !read || wroteAt > read,
+    }
+  })
+}
+
+export type Conversation = Awaited<ReturnType<typeof listConversations>>[number]
+
+// The member read the conversation up to `upTo`; reading never moves back, nor past now.
+export async function markRead(member: Member, agent: Agent, upTo: Date, now = new Date()) {
+  const readAt = upTo > now ? now : upTo
+  await db
+    .insert(conversationRead)
+    .values({ memberId: member.id, agentId: agent.id, readAt })
+    .onConflictDoUpdate({
+      target: [conversationRead.memberId, conversationRead.agentId],
+      set: { readAt: sql`greatest(${conversationRead.readAt}, excluded.read_at)` },
+    })
+}
 
 async function transcriptOf(member: Member, agent: Agent) {
   const rows = await db

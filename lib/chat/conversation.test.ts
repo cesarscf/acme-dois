@@ -9,7 +9,7 @@ import { unanswered } from "../agent/run-turn"
 import type { Member } from "../member"
 import { type Agent, createAgents, findAgent, listAgents } from "../organization/agents"
 import { saveMemberProfile, saveOrganizationProfile } from "../organization/profile"
-import { actOnCard, listMessages, sendMessage } from "./conversation"
+import { actOnCard, listConversations, listMessages, markRead, sendMessage } from "./conversation"
 
 // Friday 2026-10-23, 09:00 in São Paulo.
 const now = new Date("2026-10-23T12:00:00Z")
@@ -466,5 +466,52 @@ describe("actOnCard", () => {
     const { original, cardMessage } = await askToCancel(lia)
     expect(await actOnCard(bia, lia, cardMessage.id, "accept")).toBeUndefined()
     expect((await findAppointment(ana, original.id))?.status).toBe("scheduled")
+  })
+})
+
+describe("the list of conversations", () => {
+  const summary = async (member: Member, agent: Agent) =>
+    (await listConversations(member)).find((conversation) => conversation.id === agent.id)!
+
+  test("opens with the first line of the agent's first message, unread", async () => {
+    const lia = await teamAgent()
+    const conversations = await listConversations(ana)
+    expect(conversations.map((conversation) => conversation.name)).toEqual([setup.name, "Lia"])
+    expect(conversations[1]).toMatchObject({
+      preview: introText(lia, "Ana").split("\n")[0],
+      lastAt: lia.createdAt,
+      unread: true,
+    })
+  })
+
+  test("shows the last message, and the member's as theirs", async () => {
+    const { model } = scriptedModel(says("Que bom!\n\nQuantas  pessoas atendem?"))
+    await sendMessage(ana, setup, "Somos uma clínica", { model, now })
+    expect(await summary(ana, setup)).toMatchObject({ preview: "Que bom! Quantas pessoas atendem?" })
+
+    const failing: Model = async () => {
+      throw new Error("down")
+    }
+    spyOn(console, "error").mockImplementation(() => {})
+    await sendMessage(ana, setup, "Oi?", { model: failing, now: new Date(now.getTime() + 60_000) })
+    expect((await summary(ana, setup)).preview).toBe(unanswered.replace(/\s+/g, " "))
+  })
+
+  test("is read up to where the member read it, and unread again when the agent writes", async () => {
+    const opened = new Date(setup.createdAt.getTime() + 1)
+    const later = new Date(setup.createdAt.getTime() + 1000)
+    await markRead(ana, setup, opened, later)
+    expect((await summary(ana, setup)).unread).toBe(false)
+    expect((await summary(bia, setup)).unread).toBe(true)
+
+    const { model } = scriptedModel(says("Que bom!"))
+    await sendMessage(ana, setup, "Somos uma clínica", { model, now: later })
+    expect((await summary(ana, setup)).unread).toBe(true)
+
+    // Reading an older moment again doesn't undo what was read.
+    const [, , reply] = await listMessages(ana, setup)
+    await markRead(ana, setup, reply.createdAt, reply.createdAt)
+    await markRead(ana, setup, opened, reply.createdAt)
+    expect((await summary(ana, setup)).unread).toBe(false)
   })
 })

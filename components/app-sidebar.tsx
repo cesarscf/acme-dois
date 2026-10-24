@@ -5,6 +5,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut } from "@/app/(auth)/actions"
 import { AgentAvatar } from "@/components/agent-avatar"
+import { type ConversationSummary, useConversations } from "@/components/conversations"
 import {
   Sidebar,
   SidebarContent,
@@ -18,31 +19,48 @@ import {
   SidebarRail,
   useSidebar,
 } from "@/components/ui/sidebar"
-import type { AgentLook } from "@/lib/agent/look"
 
-type SidebarAgent = AgentLook & { id: string; kind: "setup" | "team"; name: string; role: string }
+type Props = { organizationName: string; memberName: string }
 
-type Props = { organizationName: string; memberName: string; agents: SidebarAgent[] }
-
-export function AppSidebar({ organizationName, memberName, agents }: Props) {
+export function AppSidebar({ organizationName, memberName }: Props) {
   const pathname = usePathname()
   const { setOpenMobile } = useSidebar()
+  const { conversations, working } = useConversations()
 
-  const item = (agent: SidebarAgent) => {
-    const href = `/agents/${agent.id}`
+  const item = (conversation: ConversationSummary) => {
+    const href = `/agents/${conversation.id}`
+    const isActive = pathname === href
+    const typing = working.has(conversation.id)
+    // The open conversation is being read, even before the server hears of it.
+    const unread = conversation.unread && !isActive
     return (
-      <SidebarMenuItem key={agent.id}>
+      <SidebarMenuItem key={conversation.id}>
         <SidebarMenuButton
           size="lg"
-          tooltip={agent.name}
-          isActive={pathname === href}
+          tooltip={conversation.name}
+          isActive={isActive}
+          className="h-auto gap-3 py-2"
           render={<Link href={href} onClick={() => setOpenMobile(false)} />}
         >
-          {/* The button sizes every svg in it as an icon. */}
-          <AgentAvatar look={agent} size={32} className="size-8!" />
-          <span className="flex min-w-0 flex-col">
-            <span className="truncate font-medium">{agent.name}</span>
-            <span className="truncate text-xs text-muted-foreground">{agent.role}</span>
+          <span className="relative size-10 shrink-0 group-data-[collapsible=icon]:size-8">
+            {/* The button sizes every svg in it as an icon. */}
+            <AgentAvatar look={conversation} size={40} className="size-full!" />
+            {unread ? (
+              <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-red-500 ring-2 ring-sidebar">
+                <span className="sr-only">Mensagem nova</span>
+              </span>
+            ) : null}
+          </span>
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <span className="flex items-baseline gap-2">
+              <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{conversation.name}</span>
+              <span className="shrink-0 text-xs text-muted-foreground">{conversation.when}</span>
+            </span>
+            {typing ? (
+              <span className="salte-shimmer truncate text-[13px]">Digitando...</span>
+            ) : (
+              <span className="truncate text-[13px] text-muted-foreground">{conversation.preview}</span>
+            )}
           </span>
         </SidebarMenuButton>
       </SidebarMenuItem>
@@ -60,7 +78,7 @@ export function AppSidebar({ organizationName, memberName, agents }: Props) {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu>{agents.map(item)}</SidebarMenu>
+            <SidebarMenu>{conversations.map(item)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>

@@ -5,7 +5,7 @@ import { z } from "zod"
 import type { AgentChoice } from "@/lib/agent/cards"
 import { type AgentLook, avatarColors, avatarShapes } from "@/lib/agent/look"
 import { createAnthropicModel, type Model } from "@/lib/agent/model"
-import { actOnCard, sendMessage } from "@/lib/chat/conversation"
+import { actOnCard, markRead, sendMessage } from "@/lib/chat/conversation"
 import { requireMember } from "@/lib/dal"
 import { findAgent } from "@/lib/organization/agents"
 
@@ -19,7 +19,17 @@ export async function sendMessageAction(agentId: string, input: string) {
   const [agent, text] = [await findAgent(member, agentId), messageText.safeParse(input)]
   if (!agent || !text.success) return
   await sendMessage(member, agent, text.data, { model: (model ??= createAnthropicModel()) })
-  revalidatePath(`/agents/${agent.id}`)
+  // The list beside every conversation shows the reply, even if the member opened another one.
+  revalidatePath("/", "layout")
+}
+
+// The member saw the conversation up to its message at `upTo`.
+export async function markReadAction(agentId: string, upTo: string) {
+  const member = await requireMember()
+  const [agent, seen] = [await findAgent(member, agentId), z.iso.datetime().safeParse(upTo)]
+  if (!agent || !seen.success) return
+  await markRead(member, agent, new Date(seen.data))
+  revalidatePath("/", "layout")
 }
 
 const look = z.object({ shape: z.enum(avatarShapes), color: z.enum(avatarColors) })
