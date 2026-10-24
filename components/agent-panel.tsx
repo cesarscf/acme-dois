@@ -34,9 +34,8 @@ type Tab = "details" | "groups"
 export function AgentPanel({ agent, onClose }: { agent: AgentProfile; onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("details")
   return (
-    <SidePanel onClose={onClose}>
-      <div className="flex flex-col items-center px-6">
-        <LookPicker agent={agent} />
+    <SidePanel onClose={onClose} color={agent.look.color} hero={<LookPicker agent={agent} />}>
+      <div className="flex flex-col items-center px-6 pt-5">
         <EditableText
           key={`name-${agent.name}`}
           value={agent.name}
@@ -44,7 +43,7 @@ export function AgentPanel({ agent, onClose }: { agent: AgentProfile; onClose: (
           label="Nome do agente"
           maxLength={40}
           onSave={(name) => updateAgentProfileAction(agent.id, { name })}
-          className="mt-4 text-[22px] font-semibold text-ink"
+          className="text-[22px] font-semibold text-ink"
         />
         <EditableText
           key={`role-${agent.role}`}
@@ -116,7 +115,7 @@ function Groups({ agent }: { agent: AgentProfile }) {
             href={`/groups/${group.id}`}
             className="flex items-center gap-3 rounded-2xl px-2 py-2 text-[15px] text-ink hover:bg-soft"
           >
-            <GroupAvatar looks={group.looks} size={36} ring="bg-surface" />
+            <GroupAvatar looks={group.looks} size={36} />
             {group.name}
           </Link>
         </li>
@@ -170,6 +169,7 @@ function LookPicker({ agent }: { agent: AgentProfile }) {
               aria-label={shapeNames[shape]}
               title={shapeNames[shape]}
               onClick={() => pick({ ...look, shape })}
+              data-bot-hover=""
               className={cn(
                 "grid size-13 place-items-center rounded-full transition-transform hover:scale-105",
                 look.shape === shape && "ring-1 ring-ink/30",

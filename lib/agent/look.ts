@@ -62,3 +62,21 @@ export function nextLook(taken: AgentLook[]): AgentLook {
     color: color ?? avatarColors[taken.length % avatarColors.length],
   }
 }
+
+// A person has no mascot of their own: in a group's picture they get one from their id, always the
+// same, in a rounded shape and one of the colors.
+const personShapes: readonly AvatarShape[] = ["round", "blob", "egg", "drop", "bean", "cloud"]
+
+export function personLook(id: string): AgentLook {
+  let hash = 2166136261
+  for (let i = 0; i < id.length; i++) hash = Math.imul(hash ^ id.charCodeAt(i), 16777619)
+  hash >>>= 0
+  return {
+    shape: personShapes[hash % personShapes.length],
+    color: avatarColorsInOrder[(hash >>> 8) % avatarColorsInOrder.length],
+  }
+}
+
+// How a group looks: its agents, then its people, four at most.
+export const groupLooks = (agents: AgentLook[], peopleIds: string[]) =>
+  [...agents, ...peopleIds.map(personLook)].slice(0, 4)

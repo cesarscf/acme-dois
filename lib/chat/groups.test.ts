@@ -3,6 +3,7 @@ import { createOrganization, joinOrganization, resetDatabase } from "@/test/fixt
 import { scriptedModel, says, uses } from "@/test/scripted-model"
 import { createAppointment, findAppointment } from "../agenda/appointments"
 import { createCustomer } from "../agenda/customers"
+import { personLook } from "../agent/look"
 import type { Model } from "../agent/model"
 import { teamPrompt } from "../agent/prompt"
 import { unanswered } from "../agent/run-turn"
@@ -286,11 +287,16 @@ describe("the list of groups", () => {
   test("shows the last message with who wrote it, unread only for whoever didn't write it", async () => {
     const group = await general(ana)
     expect(await summary(ana)).toMatchObject({ name: "geral", preview: "Toda a equipe e os agentes", unread: false })
-    // It looks like its agents.
-    expect((await summary(ana)).looks).toEqual([lia, otto].map(({ shape, color }) => ({ shape, color })))
+    // It looks like its agents, then its people.
+    expect((await summary(ana)).looks).toEqual([
+      ...[lia, otto].map(({ shape, color }) => ({ shape, color })),
+      personLook(ana.id),
+      personLook(bia.id),
+    ])
     const created = await createGroup(ana, { name: "Recepção", memberIds: [], agentIds: [otto.id] })
     expect((await listGroupSummaries(ana)).find((row) => row.id === created.id)?.looks).toEqual([
       { shape: otto.shape, color: otto.color },
+      personLook(ana.id),
     ])
 
     await sendGroupMessage(ana, group, "Bom  dia\ngente", { model: silent, now })

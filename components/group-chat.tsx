@@ -21,13 +21,14 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
 import { SidebarTrigger } from "@/components/ui/sidebar"
+import type { AgentLook } from "@/lib/agent/look"
 import type { GroupChatMessage } from "@/lib/chat/groups"
 import { mentionsIn } from "@/lib/chat/mentions"
 import { organizationTimeZone } from "@/lib/member"
 import { timeIn } from "@/lib/time"
 
 type Props = {
-  group: { id: string; name: string; general: boolean; members: string[] }
+  group: { id: string; name: string; general: boolean; members: string[]; looks: AgentLook[] }
   agents: Mentionable[]
   messages: GroupChatMessage[]
   profile: GroupProfile
@@ -113,10 +114,11 @@ export function GroupChat({ group, agents, messages, profile }: Props) {
             type="button"
             onClick={() => setShowProfile((shown) => !shown)}
             aria-expanded={showProfile}
+            data-bot-hover=""
             title={`Sobre ${group.name}`}
             className="flex min-w-0 items-center gap-2.5 rounded-full py-1 pr-4 pl-1 text-left hover:bg-soft"
           >
-            <GroupAvatar looks={agents.map((agent) => agent.look)} size={34} ring="bg-surface" />
+            <GroupAvatar looks={group.looks} size={34} />
             <span className="min-w-0 leading-tight">
               <span className="block truncate text-[15px] font-semibold text-ink">{group.name}</span>
               <span className="block truncate text-[12px] text-faint">

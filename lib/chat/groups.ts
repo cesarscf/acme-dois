@@ -2,11 +2,12 @@ import type Anthropic from "@anthropic-ai/sdk"
 import { and, asc, desc, eq, gt, inArray, lte, max, ne, or, sql } from "drizzle-orm"
 import { listTeam } from "../agenda/team"
 import type { Card } from "../agent/cards"
+import { groupLooks } from "../agent/look"
 import type { Model } from "../agent/model"
 import { turnContext } from "../agent/prompt"
 import { type AgentReply, runTurn, unanswered } from "../agent/run-turn"
 import { db } from "../db"
-import { agent as agentTable, chatGroupAgent, groupMessage, groupRead, groupTranscriptEntry } from "../db/schema"
+import { agent as agentTable, chatGroupAgent, chatGroupMember, groupMessage, groupRead, groupTranscriptEntry } from "../db/schema"
 import { type Member, manages, organizationTimeZone } from "../member"
 import type { Agent } from "../organization/agents"
 import { type Group, listGroups, teamAgents } from "../organization/groups"
@@ -263,7 +264,7 @@ export async function listGroupSummaries(member: Member) {
   const groups = await listGroups(member)
   if (groups.length === 0) return []
   const ids = groups.map((group) => group.id)
-  const [lasts, fromOthers, reads, names, team, chosen] = await Promise.all([
+  const [lasts, fromOthers, reads, names, team, chosen, people] = await Promise.all([
     db
       .selectDistinctOn([groupMessage.groupId], {
         groupId: groupMessage.groupId,
@@ -297,13 +298,22 @@ export async function listGroupSummaries(member: Member) {
       .select({ groupId: chatGroupAgent.groupId, agentId: chatGroupAgent.agentId })
       .from(chatGroupAgent)
       .where(inArray(chatGroupAgent.groupId, ids)),
+    db
+      .select({ groupId: chatGroupMember.groupId, memberId: chatGroupMember.memberId })
+      .from(chatGroupMember)
+      .where(inArray(chatGroupMember.groupId, ids)),
   ])
   const byGroup = <T extends { groupId: string }>(rows: T[]) => new Map(rows.map((row) => [row.groupId, row]))
-  // How each group looks in the list: its agents, in the order the team was built.
+  // How each group looks in the list: its agents, in the order the team was built, then its people.
   const looksOf = (group: { id: string; general: boolean }) =>
-    team
-      .filter((agent) => group.general || chosen.some((row) => row.groupId === group.id && row.agentId === agent.id))
-      .map(({ shape, color }) => ({ shape, color }))
+    groupLooks(
+      team
+        .filter((agent) => group.general || chosen.some((row) => row.groupId === group.id && row.agentId === agent.id))
+        .map(({ shape, color }) => ({ shape, color })),
+      [...names.members.keys()].filter(
+        (id) => group.general || people.some((row) => row.groupId === group.id && row.memberId === id),
+      ),
+    )
   const [lastOf, othersAt, readAt] = [byGroup(lasts), byGroup(fromOthers), byGroup(reads)]
 
   return groups.map((group) => {

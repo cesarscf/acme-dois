@@ -156,6 +156,7 @@ function NewAgentForm({
               aria-label={shapeNames[shape]}
               title={shapeNames[shape]}
               onClick={() => setLook({ ...look, shape })}
+              data-bot-hover=""
               className={cn(
                 "grid size-13 place-items-center rounded-full transition-transform hover:scale-105",
                 look.shape === shape && "bg-soft ring-1 ring-ink/30",

@@ -1,9 +1,14 @@
-import type { AgentLook, AvatarShape } from "@/lib/agent/look"
+"use client"
 
-// In the style of the AbacatePay marketplace bots: a colored body, a shine and two eyes.
+import { useEffect, useId, useRef } from "react"
+import { animateBot, type BotMood } from "@/components/bot-motion"
+import type { AgentLook, AvatarShape } from "@/lib/agent/look"
+import { cn } from "@/lib/utils"
+
+// In the style of the AbacatePay marketplace bots: a colored body, a shine and a face.
 
 // Each shape's body, where its shine and its face sit on it, and, for the pumpkin, its stem.
-// Where the eyes sit: their middle and how much they lean.
+// Where the eyes sit: their middle, and a lean no shape uses now.
 type Face = [x: number, y: number, tilt: number]
 
 const shapes: Record<AvatarShape, { body: string; shine: [number, number]; face: Face; stem?: string }> = {
@@ -87,39 +92,57 @@ const shapes: Record<AvatarShape, { body: string; shine: [number, number]; face:
   },
 }
 
-// Dark eyes on a light body, where white ones would get lost.
-function eyesFor(color: string) {
-  const [r, g, b] = [1, 3, 5].map((at) => Number.parseInt(color.slice(at, at + 2), 16) / 255)
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.5 ? "#2b2b30" : "#fff"
+// The eyes and the cheeks, from the middle of the eyes: two white bars that blink and look
+// around, which turn into arcs, with pink cheeks, when the mascot is happy.
+function Face({ face: [x, y] }: { face: Face }) {
+  const eyes = [x - 13.5, x + 4.5]
+  const top = y - 10
+  return (
+    <g className="bot__face">
+      <ellipse className="bot__cheek" cx={x - 21.5} cy={y + 11} rx="6" ry="3.5" />
+      <ellipse className="bot__cheek" cx={x + 22.5} cy={y + 11} rx="6" ry="3.5" />
+      {eyes.map((left) => (
+        <g key={left} className="bot__eye">
+          <rect className="bot__eye-open" x={left} y={top} width="9" height="20" rx="4.5" />
+          <path className="bot__eye-happy" d={`M${left - 0.5} ${top + 13} Q${left + 4.5} ${top + 3} ${left + 9.5} ${top + 13}`} />
+        </g>
+      ))}
+    </g>
+  )
 }
 
-export function AgentAvatar({ look, size = 40, className }: { look: AgentLook; size?: number; className?: string }) {
+type Props = {
+  look: AgentLook
+  size?: number
+  className?: string
+  // Holds the mascot in a mood instead of following the hover around it.
+  mood?: BotMood
+  // Happy for a moment as it appears.
+  greet?: boolean
+}
+
+// The mascot, alive as AbacatePay's bots are: it breathes, blinks, looks around and hops happily
+// while the element marked data-bot-hover around it is hovered.
+export function AgentAvatar({ look, size = 40, className, mood, greet }: Props) {
   const { body, shine, face, stem } = shapes[look.shape]
-  const eyes = eyesFor(look.color)
+  const ref = useRef<SVGSVGElement>(null)
+  const seed = useId()
+  useEffect(() => (ref.current ? animateBot(ref.current, { seed, mood, greet }) : undefined), [seed, mood, greet])
   return (
     <svg
-      className={className}
+      ref={ref}
+      className={cn("bot", className)}
       width={size}
       height={size}
       viewBox="0 -6 100 112"
       aria-hidden="true"
-      style={{ flex: "none" }}
     >
-      <ellipse cx="50" cy="101" rx="30" ry="3.5" fill="currentColor" opacity="0.08" />
-      {stem ? <path d={stem} stroke="#5b3a1e" strokeWidth="5" strokeLinecap="round" fill="none" /> : null}
-      <path d={body} fill={look.color} />
-      <ellipse
-        cx={shine[0]}
-        cy={shine[1]}
-        rx="9"
-        ry="5"
-        transform={`rotate(-30 ${shine[0]} ${shine[1]})`}
-        fill="#fff"
-        opacity="0.22"
-      />
-      <g transform={`translate(${face[0]} ${face[1]}) rotate(${face[2]})`}>
-        <rect x="-13.5" y="-10" width="9" height="20" rx="4.5" fill={eyes} />
-        <rect x="4.5" y="-10" width="9" height="20" rx="4.5" fill={eyes} />
+      <ellipse className="bot__shadow" cx="50" cy="101" rx="30" ry="3.5" />
+      <g className="bot__body">
+        {stem ? <path d={stem} stroke="#5b3a1e" strokeWidth="5" strokeLinecap="round" fill="none" /> : null}
+        <path d={body} fill={look.color} />
+        <ellipse className="bot__shine" cx={shine[0]} cy={shine[1]} rx="9" ry="5" transform={`rotate(-30 ${shine[0]} ${shine[1]})`} />
+        <Face face={face} />
       </g>
     </svg>
   )

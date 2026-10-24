@@ -44,17 +44,18 @@ export function AppSidebar({ user, manages, setupId, people, agents }: Props) {
       <SidebarMenuItem key={conversation.id}>
         <SidebarMenuButton
           size="lg"
+          data-bot-hover=""
           tooltip={conversation.name}
           isActive={isActive}
           className="h-auto gap-3 py-2 group-data-[collapsible=icon]:h-auto! group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:px-3! group-data-[collapsible=icon]:py-2!"
           render={<Link href={href} onClick={() => setOpenMobile(false)} />}
         >
-          <span className="relative size-10 shrink-0">
+          <span className="relative size-11 shrink-0">
             {/* The button sizes every svg in it as an icon. */}
             {conversation.kind === "group" ? (
               <GroupAvatar looks={conversation.looks} className="size-full!" />
             ) : (
-              <AgentAvatar look={conversation.looks[0]} size={40} className="size-full!" />
+              <AgentAvatar look={conversation.looks[0]} size={44} className="size-full!" />
             )}
             {unread ? (
               <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-red-500 ring-2 ring-sidebar">
@@ -83,11 +84,11 @@ export function AppSidebar({ user, manages, setupId, people, agents }: Props) {
     // its avatar, named in a tooltip.
     <Sidebar collapsible="icon">
       {/* The logo's circle, the avatars and the + keep their place as the sidebar narrows, as the
-          agents' avatars do: lined up on the same middle, 40px from the edge, while the text goes. */}
+          agents' avatars do: lined up on the same middle, 42px from the edge, while the text goes. */}
       <SidebarHeader className="overflow-hidden">
         {/* As wide as the open sidebar, so opening it only uncovers the name and the +, which never
             move, as the chats' text does. */}
-        <div className="flex h-10 w-[calc(var(--sidebar-width)-1rem)] shrink-0 items-center gap-2 pr-1 pl-[18px]">
+        <div className="flex h-10 w-[calc(var(--sidebar-width)-1rem)] shrink-0 items-center gap-2 pr-1 pl-5">
           <AcmeLogo className="min-w-0 flex-1" />
           <div className="group-data-[collapsible=icon]:hidden">
             <CreateMenu
@@ -109,7 +110,7 @@ export function AppSidebar({ user, manages, setupId, people, agents }: Props) {
       </SidebarContent>
       <SidebarFooter>
         {/* Collapsed, the + comes down here, as the chats change: at once. */}
-        <div className="hidden pl-4 group-data-[collapsible=icon]:block">
+        <div className="hidden pl-[18px] group-data-[collapsible=icon]:block">
           <CreateMenu
             manages={manages}
             setupId={setupId}

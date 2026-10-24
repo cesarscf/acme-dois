@@ -51,7 +51,7 @@ export default async function ChatLayout({ children }: LayoutProps<"/">) {
     >
       <LiveRefresh />
       {/* Collapsed, the list keeps each avatar as large and where it was: only the text goes. */}
-      <SidebarProvider style={{ "--sidebar-width": "18rem", "--sidebar-width-icon": "5rem" } as CSSProperties}>
+      <SidebarProvider style={{ "--sidebar-width": "18rem", "--sidebar-width-icon": "5.25rem" } as CSSProperties}>
         <AppSidebar
           user={{ name: member.name, email: session?.user.email ?? "" }}
           manages={manages(member)}

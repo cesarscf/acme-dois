@@ -16,7 +16,7 @@ type User = { name: string; email: string }
 
 const Initial = ({ name, className }: { name: string; className?: string }) => (
   <span
-    className={`grid size-10 shrink-0 place-items-center rounded-full bg-soft text-[15px] font-semibold text-sub ${className ?? ""}`}
+    className={`grid size-11 shrink-0 place-items-center rounded-full bg-soft text-[16px] font-semibold text-sub ${className ?? ""}`}
   >
     {name.trim().charAt(0).toUpperCase()}
   </span>

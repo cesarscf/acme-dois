@@ -66,6 +66,7 @@ export function AppearanceForm({ name, look, onChange }: Props) {
                   role="radio"
                   aria-checked={picked}
                   onClick={() => onChange({ ...look, shape })}
+                  data-bot-hover=""
                   className={cn(
                     "flex flex-col items-center gap-1 rounded-xl border px-1 pt-2 pb-1.5 text-[11px] transition-colors",
                     picked ? "border-ink/80 bg-soft text-ink" : "border-line text-sub hover:bg-soft",

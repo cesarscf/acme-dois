@@ -86,6 +86,7 @@ export function Chat({ agent, messages, suggestions, profile }: Props) {
             type="button"
             onClick={() => setShowProfile((shown) => !shown)}
             aria-expanded={showProfile}
+            data-bot-hover=""
             title={`Sobre ${agent.name}`}
             className="flex min-w-0 items-center gap-2.5 rounded-full py-1 pr-4 pl-1 text-left hover:bg-soft"
           >

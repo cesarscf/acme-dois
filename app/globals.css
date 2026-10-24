@@ -208,3 +208,134 @@
     @apply font-sans;
     }
 }
+/* The mascots, alive as AbacatePay's marketplace bots: components/bot-motion.ts sets where the eyes
+   look (--lx, --ly), the blink (--blink) and the mood; the body breathes, and hops when happy. */
+.bot {
+  flex: none;
+  display: block;
+  overflow: visible;
+}
+.bot__shadow {
+  fill: currentColor;
+  opacity: 0.08;
+  transform-box: fill-box;
+  transform-origin: 50%;
+}
+.bot__body {
+  transform-box: view-box;
+  transform-origin: 50px 97px;
+  animation: bot-breathe var(--bot-breathe, 3.2s) ease-in-out var(--bot-delay, 0s) infinite;
+}
+.bot__shine {
+  fill: #fff;
+  opacity: 0.22;
+}
+.bot__face {
+  transform: translate(calc(var(--lx, 0) * 7px), calc(var(--ly, 0) * 5px));
+}
+.bot__eye {
+  transform-box: fill-box;
+  transform-origin: 50%;
+  scale: 1 var(--blink, 1);
+  transition: scale 70ms;
+}
+.bot__eye-open {
+  fill: #fff;
+  transition: opacity 0.15s;
+}
+.bot__eye-happy {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 4.5px;
+  stroke-linecap: round;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.bot__cheek {
+  fill: #ff8fb1;
+  opacity: 0;
+  transition: opacity 0.25s;
+}
+.bot[data-mood="happy"] .bot__body {
+  animation: bot-hop 0.75s cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
+}
+.bot[data-mood="happy"] .bot__shadow {
+  animation: bot-hop-shadow 0.75s cubic-bezier(0.3, 0.7, 0.4, 1) infinite;
+}
+.bot[data-mood="happy"] .bot__eye-open {
+  opacity: 0;
+}
+.bot[data-mood="happy"] .bot__eye-happy {
+  opacity: 1;
+}
+.bot[data-mood="happy"] .bot__cheek {
+  opacity: 0.6;
+}
+@keyframes bot-breathe {
+  0%,
+  100% {
+    scale: 1;
+  }
+  50% {
+    scale: 1.025 0.97;
+  }
+}
+@keyframes bot-hop {
+  0%,
+  100% {
+    translate: 0;
+    scale: 1.06 0.94;
+  }
+  20% {
+    translate: 0;
+    scale: 0.96 1.05;
+  }
+  50% {
+    translate: 0 -8px;
+    scale: 0.98 1.02;
+  }
+  80% {
+    translate: 0;
+    scale: 1.04 0.96;
+  }
+}
+@keyframes bot-hop-shadow {
+  0%,
+  20%,
+  80%,
+  100% {
+    opacity: 0.08;
+    scale: 1;
+  }
+  50% {
+    opacity: 0.05;
+    scale: 0.7;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .bot__body,
+  .bot[data-mood="happy"] .bot__body,
+  .bot[data-mood="happy"] .bot__shadow {
+    animation: none;
+  }
+}
+
+/* The top of an agent's or a group's panel: its color washed over the panel's own, in soft
+   pools of light, as AbacatePay's marketplace shows a bot. --c is the mascot's color. */
+.panel-hero {
+  background:
+    radial-gradient(55% 75% at 22% 100%, color-mix(in srgb, var(--c) 55%, var(--salte-surface)), transparent),
+    radial-gradient(50% 70% at 85% 95%, color-mix(in srgb, var(--c) 45%, var(--salte-surface)), transparent),
+    radial-gradient(60% 60% at 50% 0%, color-mix(in srgb, var(--c) 8%, var(--salte-surface)), transparent),
+    color-mix(in srgb, var(--c) 30%, var(--salte-surface));
+}
+
+/* A group's panel top: each of its first mascots' colors fades in from a corner, as AbacatePay's
+   card for publishing a bot. --c1 to --c3 are their colors. */
+.panel-hero-group {
+  background:
+    radial-gradient(75% 95% at 15% 100%, color-mix(in srgb, var(--c1) 34%, transparent), transparent),
+    radial-gradient(75% 95% at 90% 0%, color-mix(in srgb, var(--c2) 26%, transparent), transparent),
+    radial-gradient(55% 70% at 95% 100%, color-mix(in srgb, var(--c3) 18%, transparent), transparent),
+    color-mix(in srgb, var(--c1) 6%, var(--salte-surface));
+}

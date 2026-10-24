@@ -19,6 +19,8 @@ export type GroupProfile = {
   // Who created it, or runs the organization, renames it and changes who is in it; the general
   // group stays as it is, with everyone.
   canManage: boolean
+  // Its agents, then its people, four at most.
+  looks: AgentLook[]
   you: string
   people: Person[]
   agents: GroupAgent[]
@@ -63,9 +65,12 @@ export function GroupPanel({ group, onClose }: { group: GroupProfile; onClose: (
   const outside = tab === "people" ? group.outside.people : group.outside.agents
 
   return (
-    <SidePanel onClose={onClose}>
-      <div className="flex flex-col items-center px-6">
-        <GroupAvatar looks={group.agents.map((agent) => agent.look)} size={112} ring="bg-surface" />
+    <SidePanel
+      onClose={onClose}
+      color={[...new Set(group.looks.map((look) => look.color))]}
+      hero={<GroupAvatar looks={group.looks} size={120} />}
+    >
+      <div className="flex flex-col items-center px-6 pt-5">
         <EditableText
           key={group.name}
           value={group.name}
@@ -73,7 +78,7 @@ export function GroupPanel({ group, onClose }: { group: GroupProfile; onClose: (
           label="Nome do grupo"
           maxLength={40}
           onSave={(name) => renameGroupAction(group.id, name)}
-          className="mt-4 text-[22px] font-semibold text-ink"
+          className="text-[22px] font-semibold text-ink"
         />
         <div className="mt-0.5 text-[14px] text-sub">
           {group.general
@@ -123,7 +128,7 @@ export function GroupPanel({ group, onClose }: { group: GroupProfile; onClose: (
                   removeLabel={`Tirar ${agent.name} do grupo`}
                   disabled={pending}
                 >
-                  <Link href={`/agents/${agent.id}`} className="flex min-w-0 flex-1 items-center gap-3">
+                  <Link href={`/agents/${agent.id}`} data-bot-hover="" className="flex min-w-0 flex-1 items-center gap-3">
                     <AgentLine agent={agent} />
                   </Link>
                 </Row>
@@ -236,6 +241,7 @@ function AddRow({
       <button
         type="button"
         onClick={onAdd}
+        data-bot-hover=""
         disabled={disabled}
         aria-label={label}
         className="flex w-full items-center gap-3 rounded-xl px-2 py-1.5 text-left hover:bg-soft disabled:opacity-50"
