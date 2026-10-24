@@ -3,8 +3,7 @@
 import { useState, useTransition } from "react"
 import { actOnCardAction } from "@/app/actions"
 import { AgentAvatar } from "@/components/agent-avatar"
-import { cardFrame } from "@/components/card-frame"
-import { Button } from "@/components/ui/button"
+import { cardFrame, OptionRow, Options, SystemEvent } from "@/components/card-frame"
 import type { LookCard as LookCardData } from "@/lib/agent/cards"
 import { avatarColors, avatarShapes, type AvatarShape } from "@/lib/agent/look"
 import { cn } from "@/lib/utils"
@@ -35,23 +34,24 @@ export function LookCard({ agentId, messageId, card }: Props) {
 
   if (card.status === "chosen")
     return (
-      <div className={cn(cardFrame, "flex items-center gap-2.5 px-3 py-2.5")}>
-        <AgentAvatar look={card.look} size={28} />
-        <p className="flex-1 text-sm font-medium">Aparência de {card.agentName}</p>
-        <span className="text-xs text-muted-foreground">Escolhida</span>
-      </div>
+      <SystemEvent className="flex items-center justify-center gap-1.5">
+        <AgentAvatar look={card.look} size={16} />
+        <span>
+          <span className="font-medium text-foreground">{card.agentName}</span> ganhou uma aparência nova
+        </span>
+      </SystemEvent>
     )
 
   return (
-    <div className={cn(cardFrame, "flex flex-col gap-3 p-3")}>
-      <div className="flex items-center gap-3">
-        <AgentAvatar look={look} size={48} />
+    <div className={cn(cardFrame, "flex flex-col gap-3 pt-3")}>
+      <div className="flex items-center gap-3 px-3">
+        <AgentAvatar look={look} size={40} />
         <div className="min-w-0">
           <p className="text-sm font-medium">Aparência de {card.agentName}</p>
-          <p className="text-xs text-muted-foreground">Escolha a forma e a cor.</p>
+          <p className="text-xs text-muted-foreground">Escolha a forma e a cor</p>
         </div>
       </div>
-      <div role="radiogroup" aria-label="Forma" className="flex gap-1">
+      <div role="radiogroup" aria-label="Forma" className="flex gap-1 px-3">
         {avatarShapes.map((shape) => (
           <button
             key={shape}
@@ -69,7 +69,7 @@ export function LookCard({ agentId, messageId, card }: Props) {
           </button>
         ))}
       </div>
-      <div role="radiogroup" aria-label="Cor" className="flex flex-wrap gap-1.5">
+      <div role="radiogroup" aria-label="Cor" className="flex flex-wrap gap-1.5 px-3">
         {avatarColors.map((color) => (
           <button
             key={color}
@@ -79,22 +79,21 @@ export function LookCard({ agentId, messageId, card }: Props) {
             aria-label={colorNames[color]}
             onClick={() => setLook((current) => ({ ...current, color }))}
             className={cn(
-              "size-5 rounded-full ring-offset-2 ring-offset-card",
+              "size-5 rounded-full ring-offset-2 ring-offset-muted",
               look.color === color && "ring-2 ring-ring",
             )}
             style={{ backgroundColor: color }}
           />
         ))}
       </div>
-      <div>
-        <Button
-          size="xs"
+      <Options>
+        <OptionRow
+          letter="A"
+          label="Usar esta aparência"
           disabled={pending}
           onClick={() => startTransition(() => actOnCardAction(agentId, messageId, "choose", look))}
-        >
-          Escolher
-        </Button>
-      </div>
+        />
+      </Options>
     </div>
   )
 }
