@@ -82,20 +82,22 @@ export function AppSidebar({ user, manages, setupId, people, agents }: Props) {
     // One list of every conversation, with agents and groups alike. Collapsed to icons, each stays as
     // its avatar, named in a tooltip.
     <Sidebar collapsible="icon">
-      <SidebarHeader>
-        {/* Collapsed, only the mark stays on top, and the + moves down above Sair. */}
-        <div className="hidden justify-center pt-2 pb-1 group-data-[collapsible=icon]:flex">
-          <AcmeLogo markOnly />
-        </div>
-        <div className="flex items-center gap-2 pt-1 pl-3 group-data-[collapsible=icon]:hidden">
+      {/* The logo's circle, the avatars and the + keep their place as the sidebar narrows, as the
+          agents' avatars do: lined up on the same middle, 40px from the edge, while the text goes. */}
+      <SidebarHeader className="overflow-hidden">
+        {/* As wide as the open sidebar, so opening it only uncovers the name and the +, which never
+            move, as the chats' text does. */}
+        <div className="flex h-10 w-[calc(var(--sidebar-width)-1rem)] shrink-0 items-center gap-2 pr-1 pl-[18px]">
           <AcmeLogo className="min-w-0 flex-1" />
-          <CreateMenu
-            manages={manages}
-            setupId={setupId}
-            people={people}
-            agents={agents}
-            onNavigate={() => setOpenMobile(false)}
-          />
+          <div className="group-data-[collapsible=icon]:hidden">
+            <CreateMenu
+              manages={manages}
+              setupId={setupId}
+              people={people}
+              agents={agents}
+              onNavigate={() => setOpenMobile(false)}
+            />
+          </div>
         </div>
       </SidebarHeader>
       <SidebarContent>
@@ -106,7 +108,8 @@ export function AppSidebar({ user, manages, setupId, people, agents }: Props) {
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <div className="hidden justify-center group-data-[collapsible=icon]:flex">
+        {/* Collapsed, the + comes down here, as the chats change: at once. */}
+        <div className="hidden pl-4 group-data-[collapsible=icon]:block">
           <CreateMenu
             manages={manages}
             setupId={setupId}
