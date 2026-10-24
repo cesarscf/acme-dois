@@ -73,12 +73,9 @@ export function Chat({ agent, messages, suggestions }: Props) {
             <MessageScrollerContent className="mx-auto flex w-full max-w-[760px] flex-col gap-3 px-6 pt-6 pb-6">
               <BornDivider look={agent} name={agent.name} />
               {shown.map((message) => (
-                <MessageScrollerItem
-                  key={message.id}
-                  messageId={message.id}
-                  scrollAnchor={message.author === "member"}
-                  className="flex flex-col"
-                >
+                // No scroll anchors: they pin the member's last message to the top and leave room
+                // below it; Salte keeps the conversation at the bottom.
+                <MessageScrollerItem key={message.id} messageId={message.id} className="flex flex-col">
                   <ChatMessage agentId={agent.id} message={message} />
                 </MessageScrollerItem>
               ))}
