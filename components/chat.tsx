@@ -18,6 +18,7 @@ import {
   MessageScrollerProvider,
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller"
+import { BackToList } from "@/components/back-to-list"
 import { SidebarTrigger } from "@/components/ui/sidebar"
 import type { AgentLook } from "@/lib/agent/look"
 import type { ChatMessage as ChatMessageData } from "@/lib/chat/conversation"
@@ -81,7 +82,8 @@ export function Chat({ agent, messages, suggestions, profile }: Props) {
     <div className="flex min-h-0 flex-1">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-canvas">
         <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line bg-surface px-4 lg:px-6">
-          <SidebarTrigger className="text-sub" />
+          <BackToList />
+          <SidebarTrigger className="hidden text-sub md:inline-flex" />
           <button
             type="button"
             onClick={() => setShowProfile((shown) => !shown)}

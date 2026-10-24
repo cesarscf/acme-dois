@@ -25,12 +25,14 @@ type Props = GroupCandidates & {
   // The setup agent, whose conversation a new agent starts in.
   setupId: string
   onNavigate?: () => void
+  // On a phone the + sits at the top right, larger, and its menu opens below it.
+  phone?: boolean
 }
 
 type Creating = "agent" | "group" | null
 
 // The + at the top of the list: a new agent or a new group, each in a dialog of its own.
-export function CreateMenu({ manages, setupId, people, agents, onNavigate }: Props) {
+export function CreateMenu({ manages, setupId, people, agents, onNavigate, phone = false }: Props) {
   const [creating, setCreating] = useState<Creating>(null)
   const router = useRouter()
   const close = useCallback(() => setCreating(null), [])
@@ -48,12 +50,15 @@ export function CreateMenu({ manages, setupId, people, agents, onNavigate }: Pro
       <DropdownMenu>
         <DropdownMenuTrigger
           title="Criar"
-          className="grid size-8 place-items-center rounded-full border border-line text-ink outline-none transition-colors hover:bg-soft focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-soft"
+          className={cn(
+            "grid place-items-center rounded-full border border-line text-ink outline-none transition-colors hover:bg-soft focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-soft",
+            phone ? "size-11 bg-surface" : "size-8",
+          )}
         >
-          <PlusIcon className="size-4" strokeWidth={1.75} />
+          <PlusIcon className={phone ? "size-5" : "size-4"} strokeWidth={1.75} />
           <span className="sr-only">Criar</span>
         </DropdownMenuTrigger>
-        <DropdownMenuContent side="right" align="start" sideOffset={8} className="w-44">
+        <DropdownMenuContent side={phone ? "bottom" : "right"} align={phone ? "end" : "start"} sideOffset={8} className="w-44">
           {manages ? (
             <DropdownMenuItem onClick={() => setCreating("agent")}>
               <BotIcon />

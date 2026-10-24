@@ -3,12 +3,11 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { AcmeLogo } from "@/components/acme-logo"
-import { AgentAvatar } from "@/components/agent-avatar"
 import { type ConversationSummary, useConversations } from "@/components/conversations"
 import { CreateMenu } from "@/components/create-menu"
-import { GroupAvatar } from "@/components/group-avatar"
+import { ConversationFace, ConversationText } from "@/components/conversation-line"
 import { NavUser } from "@/components/nav-user"
-import type { GroupCandidates } from "@/components/new-group-form"
+import { useShell } from "@/components/shell"
 import {
   Sidebar,
   SidebarContent,
@@ -23,16 +22,13 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 
-type Props = GroupCandidates & {
-  user: { name: string; email: string }
-  manages: boolean
-  setupId: string
-}
-
-export function AppSidebar({ user, manages, setupId, people, agents }: Props) {
+// The list beside the chat on a computer. A phone shows the list as its own screen instead (the
+// home page), as WhatsApp does, so there is no sheet to open.
+export function AppSidebar() {
   const pathname = usePathname()
-  const { setOpenMobile } = useSidebar()
+  const { isMobile } = useSidebar()
   const { conversations, working } = useConversations()
+  const { user, manages, setupId, people, agents } = useShell()
 
   const item = (conversation: ConversationSummary) => {
     const { href } = conversation
@@ -48,36 +44,16 @@ export function AppSidebar({ user, manages, setupId, people, agents }: Props) {
           tooltip={conversation.name}
           isActive={isActive}
           className="h-auto gap-3 py-2 group-data-[collapsible=icon]:h-auto! group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:px-3! group-data-[collapsible=icon]:py-2!"
-          render={<Link href={href} onClick={() => setOpenMobile(false)} />}
+          render={<Link href={href} />}
         >
-          <span className="relative size-11 shrink-0">
-            {/* The button sizes every svg in it as an icon. */}
-            {conversation.kind === "group" ? (
-              <GroupAvatar looks={conversation.looks} className="size-full!" />
-            ) : (
-              <AgentAvatar look={conversation.looks[0]} size={44} className="size-full!" />
-            )}
-            {unread ? (
-              <span className="absolute -top-0.5 -right-0.5 size-3 rounded-full bg-red-500 ring-2 ring-sidebar">
-                <span className="sr-only">Mensagem nova</span>
-              </span>
-            ) : null}
-          </span>
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
-            <span className="flex items-baseline gap-2">
-              <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{conversation.name}</span>
-              <span className="shrink-0 text-xs text-muted-foreground">{conversation.when}</span>
-            </span>
-            {typing ? (
-              <span className="salte-shimmer truncate text-[13px]">Digitando...</span>
-            ) : (
-              <span className="truncate text-[13px] text-muted-foreground">{conversation.preview}</span>
-            )}
-          </span>
+          <ConversationFace conversation={conversation} unread={unread} />
+          <ConversationText conversation={conversation} typing={typing} className="group-data-[collapsible=icon]:hidden" />
         </SidebarMenuButton>
       </SidebarMenuItem>
     )
   }
+
+  if (isMobile) return null
 
   return (
     // One list of every conversation, with agents and groups alike. Collapsed to icons, each stays as
@@ -96,8 +72,7 @@ export function AppSidebar({ user, manages, setupId, people, agents }: Props) {
               setupId={setupId}
               people={people}
               agents={agents}
-              onNavigate={() => setOpenMobile(false)}
-            />
+              />
           </div>
         </div>
       </SidebarHeader>
@@ -116,7 +91,6 @@ export function AppSidebar({ user, manages, setupId, people, agents }: Props) {
             setupId={setupId}
             people={people}
             agents={agents}
-            onNavigate={() => setOpenMobile(false)}
           />
         </div>
         <NavUser user={user} />

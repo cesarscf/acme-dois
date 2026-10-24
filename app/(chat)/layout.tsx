@@ -2,6 +2,7 @@ import type { CSSProperties } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ConversationsProvider } from "@/components/conversations"
 import { LiveRefresh } from "@/components/live-refresh"
+import { ShellProvider } from "@/components/shell"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { listConversations } from "@/lib/chat/conversation"
 import { listGroupSummaries } from "@/lib/chat/groups"
@@ -49,20 +50,24 @@ export default async function ChatLayout({ children }: LayoutProps<"/">) {
         .sort((a, b) => b.lastAt.getTime() - a.lastAt.getTime())
         .map(({ lastAt, ...conversation }) => ({ ...conversation, when: when(lastAt) }))}
     >
-      <LiveRefresh />
-      {/* Collapsed, the list keeps each avatar as large and where it was: only the text goes. */}
-      <SidebarProvider style={{ "--sidebar-width": "18rem", "--sidebar-width-icon": "5.25rem" } as CSSProperties}>
-        <AppSidebar
-          user={{ name: member.name, email: session?.user.email ?? "" }}
-          manages={manages(member)}
-          setupId={setup.id}
-          people={team.filter((teammate) => teammate.id !== member.id).map(({ id, name }) => ({ id, name }))}
-          agents={conversations
+      <ShellProvider
+        shell={{
+          user: { name: member.name, email: session?.user.email ?? "" },
+          manages: manages(member),
+          setupId: setup.id,
+          people: team.filter((teammate) => teammate.id !== member.id).map(({ id, name }) => ({ id, name })),
+          agents: conversations
             .filter((conversation) => conversation.kind === "team")
-            .map(({ id, name, role, shape, color }) => ({ id, name, role, look: { shape, color } }))}
-        />
-        <SidebarInset className="h-svh">{children}</SidebarInset>
-      </SidebarProvider>
+            .map(({ id, name, role, shape, color }) => ({ id, name, role, look: { shape, color } })),
+        }}
+      >
+        <LiveRefresh />
+        {/* Collapsed, the list keeps each avatar as large and where it was: only the text goes. */}
+        <SidebarProvider style={{ "--sidebar-width": "18rem", "--sidebar-width-icon": "5.25rem" } as CSSProperties}>
+          <AppSidebar />
+          <SidebarInset className="h-svh">{children}</SidebarInset>
+        </SidebarProvider>
+      </ShellProvider>
     </ConversationsProvider>
   )
 }

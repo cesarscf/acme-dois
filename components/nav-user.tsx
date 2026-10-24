@@ -65,3 +65,36 @@ export function NavUser({ user }: { user: User }) {
     </SidebarMenu>
   )
 }
+
+// The first letters of a name's first and last words, as "AR" for Ana Ribeiro.
+function initials(name: string) {
+  const words = name.trim().split(/\s+/).filter(Boolean)
+  const letters = words.length > 1 ? [words[0], words[words.length - 1]] : words
+  return letters.map((word) => word.charAt(0).toUpperCase()).join("")
+}
+
+// The same menu from the avatar alone, at the top left of a phone's list of conversations.
+export function UserMenu({ user }: { user: User }) {
+  const [leaving, startLeaving] = useTransition()
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        aria-label={`Conta de ${user.name}`}
+        className="grid size-11 shrink-0 place-items-center rounded-full border border-line bg-surface text-[14px] font-semibold text-ink outline-none transition-colors hover:bg-soft focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-soft"
+      >
+        {initials(user.name)}
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="bottom" align="start" sideOffset={8} className="w-60">
+        <div className="flex items-center gap-2.5 px-2 py-1.5">
+          <Initial name={user.name} />
+          <Who user={user} />
+        </div>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem disabled={leaving} onClick={() => startLeaving(() => signOut())}>
+          <LogOutIcon />
+          Sair
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
