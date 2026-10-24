@@ -1,13 +1,13 @@
 "use client"
 
-import { LogOutIcon } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { signOut } from "@/app/(auth)/actions"
+import { AcmeLogo } from "@/components/acme-logo"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { type ConversationSummary, useConversations } from "@/components/conversations"
 import { CreateMenu } from "@/components/create-menu"
 import { GroupAvatar } from "@/components/group-avatar"
+import { NavUser } from "@/components/nav-user"
 import type { GroupCandidates } from "@/components/new-group-form"
 import {
   Sidebar,
@@ -24,13 +24,12 @@ import {
 } from "@/components/ui/sidebar"
 
 type Props = GroupCandidates & {
-  organizationName: string
-  memberName: string
+  user: { name: string; email: string }
   manages: boolean
   setupId: string
 }
 
-export function AppSidebar({ organizationName, memberName, manages, setupId, people, agents }: Props) {
+export function AppSidebar({ user, manages, setupId, people, agents }: Props) {
   const pathname = usePathname()
   const { setOpenMobile } = useSidebar()
   const { conversations, working } = useConversations()
@@ -47,10 +46,10 @@ export function AppSidebar({ organizationName, memberName, manages, setupId, peo
           size="lg"
           tooltip={conversation.name}
           isActive={isActive}
-          className="h-auto gap-3 py-2"
+          className="h-auto gap-3 py-2 group-data-[collapsible=icon]:h-auto! group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:px-3! group-data-[collapsible=icon]:py-2!"
           render={<Link href={href} onClick={() => setOpenMobile(false)} />}
         >
-          <span className="relative size-10 shrink-0 group-data-[collapsible=icon]:size-8">
+          <span className="relative size-10 shrink-0">
             {/* The button sizes every svg in it as an icon. */}
             {conversation.kind === "group" ? (
               <GroupAvatar looks={conversation.looks} className="size-full!" />
@@ -63,7 +62,7 @@ export function AppSidebar({ organizationName, memberName, manages, setupId, peo
               </span>
             ) : null}
           </span>
-          <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+          <span className="flex min-w-0 flex-1 flex-col gap-0.5 group-data-[collapsible=icon]:hidden">
             <span className="flex items-baseline gap-2">
               <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{conversation.name}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{conversation.when}</span>
@@ -84,8 +83,12 @@ export function AppSidebar({ organizationName, memberName, manages, setupId, peo
     // its avatar, named in a tooltip.
     <Sidebar collapsible="icon">
       <SidebarHeader>
-        <div className="flex items-center gap-2 pt-1 pl-2 group-data-[collapsible=icon]:hidden">
-          <p className="min-w-0 flex-1 truncate text-sm font-medium">{organizationName}</p>
+        {/* Collapsed, only the mark stays on top, and the + moves down above Sair. */}
+        <div className="hidden justify-center pt-2 pb-1 group-data-[collapsible=icon]:flex">
+          <AcmeLogo markOnly />
+        </div>
+        <div className="flex items-center gap-2 pt-1 pl-3 group-data-[collapsible=icon]:hidden">
+          <AcmeLogo className="min-w-0 flex-1" />
           <CreateMenu
             manages={manages}
             setupId={setupId}
@@ -103,16 +106,16 @@ export function AppSidebar({ organizationName, memberName, manages, setupId, peo
         </SidebarGroup>
       </SidebarContent>
       <SidebarFooter>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <form action={signOut}>
-              <SidebarMenuButton type="submit" tooltip="Sair">
-                <LogOutIcon />
-                <span className="truncate">Sair ({memberName})</span>
-              </SidebarMenuButton>
-            </form>
-          </SidebarMenuItem>
-        </SidebarMenu>
+        <div className="hidden justify-center group-data-[collapsible=icon]:flex">
+          <CreateMenu
+            manages={manages}
+            setupId={setupId}
+            people={people}
+            agents={agents}
+            onNavigate={() => setOpenMobile(false)}
+          />
+        </div>
+        <NavUser user={user} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>

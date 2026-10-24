@@ -48,7 +48,7 @@ export function CreateMenu({ manages, setupId, people, agents, onNavigate }: Pro
       <DropdownMenu>
         <DropdownMenuTrigger
           title="Criar"
-          className="grid size-10 place-items-center rounded-full bg-soft text-ink outline-none transition-colors hover:bg-line focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-line"
+          className="grid size-10 place-items-center rounded-full border border-line text-ink outline-none transition-colors hover:bg-soft focus-visible:ring-2 focus-visible:ring-ring/50 data-popup-open:bg-soft"
         >
           <PlusIcon className="size-5" strokeWidth={1.75} />
           <span className="sr-only">Criar</span>

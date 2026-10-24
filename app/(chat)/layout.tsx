@@ -1,21 +1,22 @@
+import type { CSSProperties } from "react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ConversationsProvider } from "@/components/conversations"
 import { LiveRefresh } from "@/components/live-refresh"
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar"
 import { listConversations } from "@/lib/chat/conversation"
 import { listGroupSummaries } from "@/lib/chat/groups"
-import { getOrganizationName, requireMember } from "@/lib/dal"
+import { getSession, requireMember } from "@/lib/dal"
 import { listTeam } from "@/lib/agenda/team"
 import { manages, organizationTimeZone } from "@/lib/member"
 import { lastMessageLabel } from "@/lib/time"
 
 export default async function ChatLayout({ children }: LayoutProps<"/">) {
   const member = await requireMember()
-  const [conversations, groups, organizationName, team] = await Promise.all([
+  const [conversations, groups, team, session] = await Promise.all([
     listConversations(member),
     listGroupSummaries(member),
-    getOrganizationName(member.organizationId),
     listTeam(member.organizationId),
+    getSession(),
   ])
   const setup = conversations.find((conversation) => conversation.kind === "setup")!
   const now = new Date()
@@ -49,10 +50,10 @@ export default async function ChatLayout({ children }: LayoutProps<"/">) {
         .map(({ lastAt, ...conversation }) => ({ ...conversation, when: when(lastAt) }))}
     >
       <LiveRefresh />
-      <SidebarProvider>
+      {/* Collapsed, the list keeps each avatar as large and where it was: only the text goes. */}
+      <SidebarProvider style={{ "--sidebar-width-icon": "5rem" } as CSSProperties}>
         <AppSidebar
-          organizationName={organizationName}
-          memberName={member.name}
+          user={{ name: member.name, email: session?.user.email ?? "" }}
           manages={manages(member)}
           setupId={setup.id}
           people={team.filter((teammate) => teammate.id !== member.id).map(({ id, name }) => ({ id, name }))}
