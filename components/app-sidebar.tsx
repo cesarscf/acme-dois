@@ -44,7 +44,7 @@ export function AppSidebar() {
           tooltip={conversation.name}
           isActive={isActive}
           className="h-auto gap-3 py-2 group-data-[collapsible=icon]:h-auto! group-data-[collapsible=icon]:w-full! group-data-[collapsible=icon]:px-3! group-data-[collapsible=icon]:py-2!"
-          render={<Link href={href} />}
+          render={<Link href={href} prefetch />}
         >
           <ConversationFace conversation={conversation} unread={unread} />
           <ConversationText conversation={conversation} typing={typing} className="group-data-[collapsible=icon]:hidden" />

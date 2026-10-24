@@ -32,6 +32,8 @@ export function ConversationHome() {
               <li key={conversation.id}>
                 <Link
                   href={conversation.href}
+                  // The whole conversation, so it opens at once when tapped.
+                  prefetch
                   data-bot-hover=""
                   className="flex items-center gap-3 rounded-2xl px-3 py-2.5 active:bg-soft"
                 >

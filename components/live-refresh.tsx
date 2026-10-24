@@ -1,7 +1,7 @@
 "use client"
 
-import { useRouter } from "next/navigation"
-import { useEffect } from "react"
+import { usePathname, useRouter } from "next/navigation"
+import { useEffect, useRef } from "react"
 import { useConversations } from "@/components/conversations"
 
 // How often an open page looks for messages the member didn't ask for, such as an agent telling
@@ -12,8 +12,18 @@ const every = 15_000
 // it. Not while an agent answers them: the reply refreshes the page itself.
 export function LiveRefresh() {
   const router = useRouter()
+  const pathname = usePathname()
   const { working } = useConversations()
   const answering = working.size > 0
+
+  // A conversation opens at once from what the list prefetched or the member saw a moment ago, and
+  // then catches up with the server in the background, as WhatsApp does.
+  const opened = useRef(pathname)
+  useEffect(() => {
+    if (opened.current === pathname) return
+    opened.current = pathname
+    router.refresh()
+  }, [router, pathname])
 
   useEffect(() => {
     if (answering) return
