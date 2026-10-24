@@ -196,6 +196,8 @@ async function createTeam(
   choices: AgentChoice[] | undefined,
 ): Promise<Outcome> {
   const settled = action.agents.map((proposed, index) => ({ ...proposed, ...choices?.[index] }))
+  if (settled.some((agent) => !agent.name.trim()))
+    return { card: { ...card, status: "stale" }, detail: "Motivo: faltou o nome de um dos agentes." }
   try {
     const created = await createAgents(member, settled)
     return {

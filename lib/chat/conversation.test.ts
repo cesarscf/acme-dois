@@ -118,6 +118,26 @@ describe("the setup agent", () => {
     expect((await listAgents(ana))[1]).toMatchObject({ name: "Lia", shape: "square", color: "#2f80ff" })
   })
 
+  test("creates an unnamed proposal only once the member names it", async () => {
+    const proposal = { name: null, role: "Consulta da agenda", instructions: "Lê a agenda.", tools: ["read_agenda"], acts_alone: [] }
+    const { model } = scriptedModel(uses({ name: "propose_team", input: { agents: [proposal] } }), says("Confere?"))
+    await sendMessage(ana, setup, "Quero um agente que só consulta", { model, now })
+    const card = (await listMessages(ana, setup)).find((row) => row.card)!
+
+    expect(await actOnCard(ana, setup, card.id, "accept")).toMatchObject({ status: "stale" })
+    expect(await listAgents(ana)).toHaveLength(1)
+  })
+
+  test("an unnamed proposal is created with the name written in the card", async () => {
+    const proposal = { name: null, role: "Consulta da agenda", instructions: "Lê a agenda.", tools: ["read_agenda"], acts_alone: [] }
+    const { model } = scriptedModel(uses({ name: "propose_team", input: { agents: [proposal] } }), says("Confere?"))
+    await sendMessage(ana, setup, "Quero um agente que só consulta", { model, now })
+    const card = (await listMessages(ana, setup)).find((row) => row.card)!
+    const team = [{ name: "Rosa", shape: "star", color: "#14b8a6" }] as const
+    expect(await actOnCard(ana, setup, card.id, "accept", { team: [...team] })).toMatchObject({ status: "accepted" })
+    expect((await listAgents(ana))[1]).toMatchObject({ name: "Rosa", role: "Consulta da agenda" })
+  })
+
   test("declining the proposal creates nobody", async () => {
     const proposal = { name: "Lia", role: "Secretária", instructions: "Marca.", tools: ["read_agenda"], acts_alone: [] }
     const { model } = scriptedModel(uses({ name: "propose_team", input: { agents: [proposal] } }), says("Confere?"))

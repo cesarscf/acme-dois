@@ -101,6 +101,12 @@ describe("propose_team", () => {
     ])
   })
 
+  test("leaves the name for the member to write in the card when none was given", async () => {
+    const execution = await run("propose_team", { agents: [{ ...lia, name: null }] })
+    expect(execution.card).toMatchObject({ type: "team", agents: [{ name: "", role: "Secretária da agenda" }] })
+    expect(execution.action).toMatchObject({ kind: "create_agents", agents: [{ name: "" }] })
+  })
+
   test("never lets an agent cancel alone", async () => {
     const execution = await run("propose_team", {
       agents: [{ ...lia, tools: ["cancel_appointment"], acts_alone: ["cancel_appointment"] }],

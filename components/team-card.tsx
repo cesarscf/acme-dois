@@ -47,10 +47,11 @@ export function TeamCard({ agentId, messageId, card }: Props) {
                     <label className="flex items-center gap-1.5">
                       <input
                         aria-label="Nome do agente"
+                        placeholder="Dê um nome"
                         value={settled.name}
                         maxLength={40}
                         onChange={(event) => set(index, { name: event.target.value })}
-                        className="-mx-1 w-full rounded-md bg-transparent px-1 text-[15px] leading-tight font-semibold text-ink outline-none hover:bg-soft focus:bg-soft"
+                        className="-mx-1 w-full rounded-md bg-transparent px-1 text-[15px] leading-tight font-semibold text-ink outline-none hover:bg-soft focus:bg-soft placeholder:font-normal placeholder:text-faint"
                       />
                       <PencilIcon aria-hidden className="size-3.5 shrink-0 text-faint" />
                     </label>

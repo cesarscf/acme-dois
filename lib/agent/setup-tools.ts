@@ -99,7 +99,8 @@ const proposedAgent = z.object({
     .trim()
     .min(1)
     .max(40)
-    .describe("O nome que o membro escolheu, ou um nome curto de pessoa que você sugere, como Lia."),
+    .nullable()
+    .describe("O nome que o membro escolheu, ou null se ele ainda não disse: ele escreve no card. Nunca invente um nome."),
   role: z.string().trim().min(1).max(80).describe("O cargo, como Secretária da agenda."),
   instructions: z
     .string()
@@ -127,20 +128,22 @@ export const proposeTeamTool = defineTool({
     const taken = new Set(team.map((agent) => agent.name.toLowerCase()))
     const looks: AgentLook[] = team.map(({ shape, color }) => ({ shape, color }))
     const proposed: ProposedAgent[] = agents.map((agent) => {
-      if (taken.has(agent.name.toLowerCase()))
+      if (agent.name && taken.has(agent.name.toLowerCase()))
         throw new ToolRefusal(`Já existe um agente chamado ${agent.name}.`)
+      const called = agent.name ?? agent.role
       const tools = [...new Set([...baseAgendaTools, ...agent.tools])]
       const alone = agent.acts_alone.filter((tool) => !confirmable.has(tool))
       if (alone.length)
-        throw new ToolRefusal(`${agent.name} não pode usar ${alone.join(", ")} sem perguntar.`)
+        throw new ToolRefusal(`${called} não pode usar ${alone.join(", ")} sem perguntar.`)
       const missing = agent.acts_alone.filter((tool) => !tools.includes(tool))
       if (missing.length)
-        throw new ToolRefusal(`${agent.name} age sozinho em ${missing.join(", ")} sem ter a ferramenta.`)
+        throw new ToolRefusal(`${called} age sozinho em ${missing.join(", ")} sem ter a ferramenta.`)
       // A look the team isn't using, for the member to keep or change in the card.
       const look = nextLook(looks)
       looks.push(look)
       return {
-        name: agent.name,
+        // Empty until the member names it in the card.
+        name: agent.name ?? "",
         role: agent.role,
         instructions: agent.instructions,
         tools,
