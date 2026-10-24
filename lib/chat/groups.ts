@@ -44,6 +44,24 @@ const visibleTo = (member: Member) =>
 
 const groupOrder = [desc(chatGroup.general), asc(chatGroup.createdAt)]
 
+// The groups the member is in that have this agent: the general group has every team agent.
+export async function listAgentGroups(member: Member, agent: Pick<Agent, "id" | "kind">) {
+  if (agent.kind !== "team") return []
+  return db
+    .select({ id: chatGroup.id, name: chatGroup.name, general: chatGroup.general })
+    .from(chatGroup)
+    .where(
+      and(
+        visibleTo(member),
+        or(
+          eq(chatGroup.general, true),
+          sql`exists (select 1 from ${chatGroupAgent} where ${chatGroupAgent.groupId} = ${chatGroup.id} and ${chatGroupAgent.agentId} = ${agent.id})`,
+        ),
+      ),
+    )
+    .orderBy(...groupOrder)
+}
+
 export async function listGroups(member: Member) {
   return db
     .select({ id: chatGroup.id, name: chatGroup.name, general: chatGroup.general, createdAt: chatGroup.createdAt })

@@ -11,6 +11,7 @@ import {
   listAgents,
   setupAgent,
   updateAgentLook,
+  updateAgentProfile,
 } from "./agents"
 
 const lia: ProposedAgent = {
@@ -85,4 +86,26 @@ test("only who runs the organization creates agents or changes their look", asyn
   const [created] = await createAgents(ana, [lia])
   expect(await updateAgentLook(joana, created.id, { shape: "round", color: "#2f80ff" })).toBe(false)
   expect(await findAgent(ana, created.id)).toMatchObject({ shape: "square", color: "#9b6bff" })
+})
+
+describe("updateAgentProfile", () => {
+  test("renames a team agent and changes its role, trimmed", async () => {
+    const [created] = await createAgents(ana, [lia])
+    expect(await updateAgentProfile(ana, created.id, { name: "  Nina  Souza ", role: "Recepção" })).toEqual({
+      name: "Nina Souza",
+      role: "Recepção",
+    })
+    expect(await findAgent(ana, created.id)).toMatchObject({ name: "Nina Souza", role: "Recepção" })
+  })
+
+  test("turns down a name in use, an empty one, the setup agent and whoever doesn't run the organization", async () => {
+    const [created] = await createAgents(ana, [lia, { ...lia, name: "Tom" }])
+    expect(updateAgentProfile(ana, created.id, { name: "tom" })).rejects.toThrow("Já existe um agente chamado tom.")
+    expect(updateAgentProfile(ana, created.id, { name: " " })).rejects.toThrow(AgentError)
+    const [setup] = await listAgents(ana)
+    expect(updateAgentProfile(ana, setup.id, { name: "Bot" })).rejects.toThrow("Esse agente não pode ser mudado.")
+    const joana = await joinOrganization(ana.organizationId, "Joana")
+    expect(updateAgentProfile(joana, created.id, { role: "Outra" })).rejects.toThrow(AgentError)
+    expect(await findAgent(ana, created.id)).toMatchObject({ name: "Lia", role: "Secretária" })
+  })
 })

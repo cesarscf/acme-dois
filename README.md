@@ -38,6 +38,10 @@ Cada agente criado trabalha pela sua ficha. Ferramentas fora da ficha não chega
 
 Quem administra a clínica também cria agentes pelo **+** (Novo agente): escolhe o nome, a forma e a cor num diálogo, e a Acme Bot continua na conversa com ele, perguntando o que o agente vai fazer. A proposta chega no card de sempre, já com esse nome e essa aparência, e o agente só existe depois da confirmação.
 
+## Painel do agente
+
+Clicar no nome do agente, no topo da conversa, abre o painel dele ao lado, como no Grok: o mascote, o nome, o cargo e as abas **Detalhes** (o que pode usar, o que faz sem perguntar, o que pergunta antes e as instruções) e **Grupos** (os seus grupos em que ele está). Quem administra a clínica muda ali o nome e o cargo de um agente de agenda, e a aparência de qualquer agente pelo lápis sobre o mascote.
+
 ## Grupos
 
 Além da conversa de cada membro com cada agente, a equipe conversa em grupos. O **#geral** nasce com a clínica e tem sempre toda a equipe e todos os agentes de agenda, inclusive quem chega depois. Qualquer membro cria outros grupos pelo **+** no topo da lista (Novo grupo), escolhendo as pessoas e os agentes; quem cria sempre está nele, e só quem está vê o grupo.
@@ -59,6 +63,7 @@ lib/chat/groups.ts                 grupos: quem está em cada um, mensagens, o t
 lib/chat/mentions.ts               quem foi chamado com @ numa mensagem
 app/(chat)/groups/[groupId]        um grupo → components/group-chat.tsx
 components/create-menu.tsx         o + da lista: Novo agente e Novo grupo, cada um num diálogo
+components/agent-panel.tsx         o painel do agente, aberto pelo nome dele no topo da conversa
 lib/agent/run-turn.ts              loop: modelo → ferramentas → modelo, até terminar
 lib/agent/tool-registry.ts         valida entradas (zod) e troca por um card de confirmação o que o agente não faz sozinho
 lib/agent/agenda-tools.ts          ferramentas dos agentes de agenda
@@ -80,4 +85,4 @@ Ferramentas de agenda: `find_customers`, `create_customer`, `read_agenda`, `crea
 
 ## O que ficou de fora do `acme`
 
-Só a agenda, via chat. Sem tela de agenda, roteamento automático em grupos (sem @, ninguém responde), delegação entre agentes, edição de um agente já criado, rotinas, mensagens preparadas, evoluções, orçamento de IA, push, login por telefone nem pseudônimos de clientes (aqui o modelo vê o nome da cliente).
+Só a agenda, via chat. Sem tela de agenda, roteamento automático em grupos (sem @, ninguém responde), delegação entre agentes, edição do que um agente já criado faz (nome, cargo e aparência mudam pelo painel), rotinas, mensagens preparadas, evoluções, orçamento de IA, push, login por telefone nem pseudônimos de clientes (aqui o modelo vê o nome da cliente).

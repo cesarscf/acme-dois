@@ -14,6 +14,7 @@ import {
   createGroup,
   findGroup,
   type Group,
+  listAgentGroups,
   GroupError,
   listGroupMessages,
   listGroups,
@@ -106,6 +107,15 @@ describe("createGroup", () => {
       { name: "Zuri", role: lia.role, instructions: lia.instructions, tools: lia.tools, actsAlone: [], shape: "round", color: "#2f80ff" },
     ])
     expect(createGroup(ana, { name: "Outro", memberIds: [], agentIds: [outsider[0].id] })).rejects.toThrow(GroupError)
+  })
+})
+
+describe("listAgentGroups", () => {
+  test("lists the member's groups the agent is in, the general group first", async () => {
+    await createGroup(ana, { name: "Recepção", memberIds: [], agentIds: [otto.id] })
+    await createGroup(bia, { name: "Só da Bia", memberIds: [], agentIds: [otto.id] })
+    expect((await listAgentGroups(ana, otto)).map((group) => group.name)).toEqual(["geral", "Recepção"])
+    expect((await listAgentGroups(ana, lia)).map((group) => group.name)).toEqual(["geral"])
   })
 })
 

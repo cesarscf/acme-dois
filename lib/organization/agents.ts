@@ -97,3 +97,26 @@ export async function updateAgentLook(member: Member, id: string, look: AgentLoo
     .returning({ id: agent.id })
   return Boolean(updated)
 }
+
+// Who runs the organization renames a team agent or changes its role. The setup agent keeps its
+// own: the app names it in what it writes.
+export async function updateAgentProfile(member: Member, id: string, change: { name?: string; role?: string }) {
+  if (!manages(member)) throw new AgentError("Só quem administra a clínica muda um agente.")
+  const name = change.name?.trim().replace(/\s+/g, " ")
+  const role = change.role?.trim().replace(/\s+/g, " ")
+  if (name !== undefined && (!name || name.length > 40)) throw new AgentError("O nome do agente tem de 1 a 40 letras.")
+  if (role !== undefined && (!role || role.length > 80)) throw new AgentError("O cargo do agente tem de 1 a 80 letras.")
+  try {
+    const [updated] = await db
+      .update(agent)
+      .set({ ...(name !== undefined && { name }), ...(role !== undefined && { role }) })
+      .where(and(eq(agent.id, id), eq(agent.organizationId, member.organizationId), eq(agent.kind, "team")))
+      .returning({ name: agent.name, role: agent.role })
+    if (!updated) throw new AgentError("Esse agente não pode ser mudado.")
+    return updated
+  } catch (failure) {
+    if ((failure as { cause?: { code?: string } }).cause?.code === "23505")
+      throw new AgentError(`Já existe um agente chamado ${name}.`)
+    throw failure
+  }
+}

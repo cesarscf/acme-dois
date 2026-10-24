@@ -8,7 +8,7 @@ import { createAnthropicModel, type Model } from "@/lib/agent/model"
 import { actOnCard, askForNewAgent, markRead, sendMessage } from "@/lib/chat/conversation"
 import { actOnGroupCard, createGroup, findGroup, GroupError, markGroupRead, sendGroupMessage } from "@/lib/chat/groups"
 import { requireMember } from "@/lib/dal"
-import { AgentError, findAgent, newAgentProblem } from "@/lib/organization/agents"
+import { AgentError, findAgent, newAgentProblem, updateAgentLook, updateAgentProfile } from "@/lib/organization/agents"
 
 // One client for the server's lifetime; it holds no request state.
 let model: Model | undefined
@@ -134,4 +134,30 @@ export async function askForNewAgentAction(name: string, chosen: AgentLook): Pro
   }
   revalidatePath("/", "layout")
   return {}
+}
+
+// Who runs the organization renames an agent or changes its role, from its panel.
+export async function updateAgentProfileAction(
+  agentId: string,
+  change: { name?: string; role?: string },
+): Promise<{ error?: string }> {
+  const member = await requireMember()
+  const input = z.object({ name: z.string().max(80).optional(), role: z.string().max(120).optional() }).safeParse(change)
+  if (!input.success) return { error: "Não deu para salvar." }
+  try {
+    await updateAgentProfile(member, agentId, input.data)
+  } catch (failure) {
+    if (failure instanceof AgentError) return { error: failure.message }
+    throw failure
+  }
+  revalidatePath("/", "layout")
+  return {}
+}
+
+export async function updateAgentLookAction(agentId: string, chosen: AgentLook) {
+  const member = await requireMember()
+  const input = look.safeParse(chosen)
+  if (!input.success) return
+  await updateAgentLook(member, agentId, input.data)
+  revalidatePath("/", "layout")
 }

@@ -4,6 +4,7 @@ import { ArrowDownIcon } from "lucide-react"
 import { useEffect, useState } from "react"
 import { markReadAction, sendMessageAction } from "@/app/actions"
 import { AgentAvatar } from "@/components/agent-avatar"
+import { AgentPanel, type AgentProfile } from "@/components/agent-panel"
 import { ChatMessage } from "@/components/chat-message"
 import { useConversations } from "@/components/conversations"
 import { PromptForm } from "@/components/prompt-form"
@@ -25,11 +26,13 @@ type Props = {
   agent: AgentLook & { id: string; name: string; role: string }
   messages: ChatMessageData[]
   suggestions: string[]
+  profile: AgentProfile
 }
 
 // Sending and reading stay out of transitions: React holds every navigation until a pending
 // transition ends, so the member couldn't open another conversation while the agent answers.
-export function Chat({ agent, messages, suggestions }: Props) {
+export function Chat({ agent, messages, suggestions, profile }: Props) {
+  const [showProfile, setShowProfile] = useState(false)
   // What the member sent, until the conversation comes back from the server with it.
   const [sent, setSent] = useState<{ after: ChatMessageData[]; messages: ChatMessageData[] }>({
     after: messages,
@@ -75,54 +78,63 @@ export function Chat({ agent, messages, suggestions }: Props) {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-canvas">
-      <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line bg-surface px-4 lg:px-6">
-        <SidebarTrigger className="text-sub" />
-        <div className="flex min-w-0 items-center gap-2.5 rounded-full py-1 pr-4 pl-1">
-          <span className="relative shrink-0">
-            <AgentAvatar look={agent} size={34} />
-            {working ? (
-              <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-surface" />
-            ) : null}
-          </span>
-          <span className="min-w-0 leading-tight">
-            <span className="block truncate text-[15px] font-semibold text-ink">{agent.name}</span>
-            <span className="block truncate text-[12px] text-faint">{status}</span>
-          </span>
-        </div>
-      </header>
-
-      <MessageScrollerProvider>
-        <MessageScroller className="flex-1">
-          <MessageScrollerViewport>
-            <MessageScrollerContent className="mx-auto flex w-full max-w-[760px] flex-col gap-3 px-6 pt-6 pb-6">
-              <BornDivider look={agent} name={agent.name} />
-              {shown.map((message) => (
-                // No scroll anchors: they pin the member's last message to the top and leave room
-                // below it; Salte keeps the conversation at the bottom.
-                <MessageScrollerItem key={message.id} messageId={message.id} className="flex flex-col">
-                  <ChatMessage agentId={agent.id} message={message} />
-                </MessageScrollerItem>
-              ))}
+    <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col bg-canvas">
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b border-line bg-surface px-4 lg:px-6">
+          <SidebarTrigger className="text-sub" />
+          <button
+            type="button"
+            onClick={() => setShowProfile((shown) => !shown)}
+            aria-expanded={showProfile}
+            title={`Sobre ${agent.name}`}
+            className="flex min-w-0 items-center gap-2.5 rounded-full py-1 pr-4 pl-1 text-left hover:bg-soft"
+          >
+            <span className="relative shrink-0">
+              <AgentAvatar look={agent} size={34} />
               {working ? (
-                <MessageScrollerItem messageId="thinking">
-                  <Thinking look={agent} />
-                </MessageScrollerItem>
+                <span className="absolute -right-0.5 -bottom-0.5 size-2.5 rounded-full bg-emerald-500 ring-2 ring-surface" />
               ) : null}
-            </MessageScrollerContent>
-          </MessageScrollerViewport>
-          <MessageScrollerButton>
-            <ArrowDownIcon />
-            <span className="sr-only">Ir para a última mensagem</span>
-          </MessageScrollerButton>
-        </MessageScroller>
-      </MessageScrollerProvider>
+            </span>
+            <span className="min-w-0 leading-tight">
+              <span className="block truncate text-[15px] font-semibold text-ink">{agent.name}</span>
+              <span className="block truncate text-[12px] text-faint">{status}</span>
+            </span>
+          </button>
+        </header>
 
-      <div className="mx-auto flex w-full max-w-[760px] shrink-0 flex-col gap-3 px-4 pb-5 lg:px-6">
-        {failed ? <SystemEvent>A mensagem não foi enviada. Confira a sua conexão e tente de novo.</SystemEvent> : null}
-        {!started && !working ? <Suggestions suggestions={suggestions} onSelect={send} /> : null}
-        <PromptForm placeholder={`Escreva para ${agent.name}`} isBusy={working} onSubmit={send} />
+        <MessageScrollerProvider>
+          <MessageScroller className="flex-1">
+            <MessageScrollerViewport>
+              <MessageScrollerContent className="mx-auto flex w-full max-w-[760px] flex-col gap-3 px-6 pt-6 pb-6">
+                <BornDivider look={agent} name={agent.name} />
+                {shown.map((message) => (
+                  // No scroll anchors: they pin the member's last message to the top and leave room
+                  // below it; Salte keeps the conversation at the bottom.
+                  <MessageScrollerItem key={message.id} messageId={message.id} className="flex flex-col">
+                    <ChatMessage agentId={agent.id} message={message} />
+                  </MessageScrollerItem>
+                ))}
+                {working ? (
+                  <MessageScrollerItem messageId="thinking">
+                    <Thinking look={agent} />
+                  </MessageScrollerItem>
+                ) : null}
+              </MessageScrollerContent>
+            </MessageScrollerViewport>
+            <MessageScrollerButton>
+              <ArrowDownIcon />
+              <span className="sr-only">Ir para a última mensagem</span>
+            </MessageScrollerButton>
+          </MessageScroller>
+        </MessageScrollerProvider>
+
+        <div className="mx-auto flex w-full max-w-[760px] shrink-0 flex-col gap-3 px-4 pb-5 lg:px-6">
+          {failed ? <SystemEvent>A mensagem não foi enviada. Confira a sua conexão e tente de novo.</SystemEvent> : null}
+          {!started && !working ? <Suggestions suggestions={suggestions} onSelect={send} /> : null}
+          <PromptForm placeholder={`Escreva para ${agent.name}`} isBusy={working} onSubmit={send} />
+        </div>
       </div>
+      {showProfile ? <AgentPanel agent={profile} onClose={() => setShowProfile(false)} /> : null}
     </div>
   )
 }
