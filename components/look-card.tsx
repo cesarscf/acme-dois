@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react"
 import { actOnCardAction } from "@/app/actions"
 import { AgentAvatar } from "@/components/agent-avatar"
-import { cardFrame, OptionRow, Options, SystemEvent } from "@/components/card-frame"
+import { CharterHead, QuestionCard, SalteCard, SystemEvent } from "@/components/salte"
 import type { LookCard as LookCardData } from "@/lib/agent/cards"
 import { avatarColors, avatarShapes, type AvatarShape } from "@/lib/agent/look"
 import { cn } from "@/lib/utils"
@@ -34,66 +34,66 @@ export function LookCard({ agentId, messageId, card }: Props) {
 
   if (card.status === "chosen")
     return (
-      <SystemEvent className="flex items-center justify-center gap-1.5">
-        <AgentAvatar look={card.look} size={16} />
-        <span>
-          <span className="font-medium text-foreground">{card.agentName}</span> ganhou uma aparência nova
+      <SystemEvent>
+        <span className="inline-flex items-center gap-1.5">
+          <AgentAvatar look={card.look} size={16} />
+          <span>
+            <b className="font-semibold text-ink">{card.agentName}</b> ganhou uma aparência nova
+          </span>
         </span>
       </SystemEvent>
     )
 
   return (
-    <div className={cn(cardFrame, "flex flex-col gap-3 pt-3")}>
-      <div className="flex items-center gap-3 px-3">
-        <AgentAvatar look={look} size={40} />
-        <div className="min-w-0">
-          <p className="text-sm font-medium">Aparência de {card.agentName}</p>
-          <p className="text-xs text-muted-foreground">Escolha a forma e a cor</p>
+    <>
+      <SalteCard className="p-4">
+        <CharterHead look={look} title={`Aparência de ${card.agentName}`} subtitle="Escolha a forma e a cor" />
+        <div role="radiogroup" aria-label="Forma" className="mt-3.5 flex gap-1">
+          {avatarShapes.map((shape) => (
+            <button
+              key={shape}
+              type="button"
+              role="radio"
+              aria-checked={look.shape === shape}
+              aria-label={shapeNames[shape]}
+              onClick={() => setLook((current) => ({ ...current, shape }))}
+              className={cn(
+                "rounded-xl border border-transparent p-1.5 hover:bg-soft",
+                look.shape === shape && "border-line bg-soft",
+              )}
+            >
+              <AgentAvatar look={{ ...look, shape }} size={30} />
+            </button>
+          ))}
         </div>
-      </div>
-      <div role="radiogroup" aria-label="Forma" className="flex gap-1 px-3">
-        {avatarShapes.map((shape) => (
-          <button
-            key={shape}
-            type="button"
-            role="radio"
-            aria-checked={look.shape === shape}
-            aria-label={shapeNames[shape]}
-            onClick={() => setLook((current) => ({ ...current, shape }))}
-            className={cn(
-              "rounded-lg border border-transparent p-1 hover:bg-muted",
-              look.shape === shape && "border-ring bg-muted",
-            )}
-          >
-            <AgentAvatar look={{ ...look, shape }} size={28} />
-          </button>
-        ))}
-      </div>
-      <div role="radiogroup" aria-label="Cor" className="flex flex-wrap gap-1.5 px-3">
-        {avatarColors.map((color) => (
-          <button
-            key={color}
-            type="button"
-            role="radio"
-            aria-checked={look.color === color}
-            aria-label={colorNames[color]}
-            onClick={() => setLook((current) => ({ ...current, color }))}
-            className={cn(
-              "size-5 rounded-full ring-offset-2 ring-offset-muted",
-              look.color === color && "ring-2 ring-ring",
-            )}
-            style={{ backgroundColor: color }}
-          />
-        ))}
-      </div>
-      <Options>
-        <OptionRow
-          letter="A"
-          label="Usar esta aparência"
-          disabled={pending}
-          onClick={() => startTransition(() => actOnCardAction(agentId, messageId, "choose", look))}
-        />
-      </Options>
-    </div>
+        <div role="radiogroup" aria-label="Cor" className="mt-3 flex flex-wrap gap-2">
+          {avatarColors.map((color) => (
+            <button
+              key={color}
+              type="button"
+              role="radio"
+              aria-checked={look.color === color}
+              aria-label={colorNames[color]}
+              onClick={() => setLook((current) => ({ ...current, color }))}
+              className={cn(
+                "size-6 rounded-full ring-offset-2 ring-offset-surface",
+                look.color === color && "ring-2 ring-ink",
+              )}
+              style={{ backgroundColor: color }}
+            />
+          ))}
+        </div>
+      </SalteCard>
+      <QuestionCard
+        question={`Usar esta aparência para ${card.agentName}?`}
+        disabled={pending}
+        options={[
+          {
+            label: "Usar esta aparência",
+            onClick: () => startTransition(() => actOnCardAction(agentId, messageId, "choose", look)),
+          },
+        ]}
+      />
+    </>
   )
 }

@@ -2,11 +2,9 @@
 
 import { CheckIcon, CopyIcon } from "lucide-react"
 import { useEffect, useState } from "react"
-import { Button } from "@/components/ui/button"
-import { MessageFooter } from "@/components/ui/message"
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 
-export function MessageActions({ text }: { text: string }) {
+// Under an agent's message, as in Salte: copy, then the time.
+export function MessageActions({ text, time }: { text: string; time: string }) {
   const [copied, setCopied] = useState(false)
 
   useEffect(() => {
@@ -15,31 +13,23 @@ export function MessageActions({ text }: { text: string }) {
     return () => clearTimeout(timeout)
   }, [copied])
 
-  const label = copied ? "Copiado" : "Copiar"
   return (
-    <MessageFooter className="px-0">
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={label}
-              onClick={() => {
-                navigator.clipboard
-                  .writeText(text)
-                  .then(() => setCopied(true))
-                  .catch(() => {})
-              }}
-            />
-          }
-        >
-          {copied ? <CheckIcon /> : <CopyIcon />}
-        </TooltipTrigger>
-        <TooltipContent>
-          <p>{label}</p>
-        </TooltipContent>
-      </Tooltip>
-    </MessageFooter>
+    <div className="mt-1.5 flex items-center gap-2.5 text-[12px] text-faint">
+      <button
+        type="button"
+        aria-label={copied ? "Copiado" : "Copiar"}
+        title={copied ? "Copiado" : "Copiar"}
+        className="hover:text-sub"
+        onClick={() => {
+          navigator.clipboard
+            .writeText(text)
+            .then(() => setCopied(true))
+            .catch(() => {})
+        }}
+      >
+        {copied ? <CheckIcon className="size-3.5" /> : <CopyIcon className="size-3.5" />}
+      </button>
+      <span>{time}</span>
+    </div>
   )
 }

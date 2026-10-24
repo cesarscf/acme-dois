@@ -10,11 +10,78 @@
   --typeset-font-heading: var(--font-sans);
   --typeset-font-mono: var(--font-mono);
   --typeset-size: 15px;
-  --typeset-leading: 1.75;
-  --typeset-flow: 1.25em;
+  --typeset-leading: 1.45;
+  --typeset-flow: 0.75em;
+}
+
+/* The conversation copies Salte (docs/referencias/salte in the acme repo); the rest of the app
+   keeps the shadcn theme. */
+:root {
+  --salte-canvas: #f7f7f8;
+  --salte-surface: #ffffff;
+  --salte-soft: #f1f1f3;
+  --salte-line: #e7e7eb;
+  --salte-ink: #0b0b0f;
+  --salte-sub: #6e6e77;
+  --salte-faint: #9a9aa2;
+  --salte-brand: #377fe6;
+  --salte-brand-off: #b9d1f6;
+}
+
+.dark {
+  --salte-canvas: oklch(0.145 0 0);
+  --salte-surface: oklch(0.205 0 0);
+  --salte-soft: oklch(0.269 0 0);
+  --salte-line: oklch(1 0 0 / 10%);
+  --salte-ink: oklch(0.985 0 0);
+  --salte-sub: oklch(0.708 0 0);
+  --salte-faint: oklch(0.556 0 0);
+  --salte-brand: #4a8df0;
+  --salte-brand-off: #2a4e86;
+}
+
+/* "Pensando": the agent's avatar in an iridescent ring, beside shimmering text. */
+.salte-iri {
+  background: conic-gradient(from 0deg, #5aa9ff, #ff7ac6, #ffd86b, #6be3a4, #5aa9ff);
+  animation: salte-pulse 1.4s ease-in-out infinite;
+}
+.salte-shimmer {
+  background: linear-gradient(90deg, var(--salte-faint) 30%, var(--salte-soft) 50%, var(--salte-faint) 70%);
+  background-size: 200% 100%;
+  background-clip: text;
+  color: transparent;
+  animation: salte-shimmer 1.4s linear infinite;
+}
+@keyframes salte-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+@keyframes salte-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .salte-iri,
+  .salte-shimmer {
+    animation: none;
+  }
 }
 
 @theme inline {
+    --color-canvas: var(--salte-canvas);
+    --color-surface: var(--salte-surface);
+    --color-soft: var(--salte-soft);
+    --color-line: var(--salte-line);
+    --color-ink: var(--salte-ink);
+    --color-sub: var(--salte-sub);
+    --color-faint: var(--salte-faint);
+    --color-brand: var(--salte-brand);
+    --color-brand-off: var(--salte-brand-off);
     --font-heading: var(--font-sans);
     --font-sans: var(--font-sans);
     --color-sidebar-ring: var(--sidebar-ring);

@@ -1,34 +1,24 @@
 import { MessageActions } from "@/components/message-actions"
 import { MessageCard } from "@/components/message-card"
+import { MemberBubble } from "@/components/salte"
 import { TextPart } from "@/components/text-part"
-import { Bubble, BubbleContent } from "@/components/ui/bubble"
-import { Message, MessageContent } from "@/components/ui/message"
 import type { ChatMessage as ChatMessageData } from "@/lib/chat/conversation"
+import { organizationTimeZone } from "@/lib/member"
+import { timeIn } from "@/lib/time"
 
+// The agent writes without a bubble, like Salte; the member, in a white one.
 export function ChatMessage({ agentId, message }: { agentId: string; message: ChatMessageData }) {
-  if (message.author === "member")
+  if (message.author === "member") return <MemberBubble>{message.text}</MemberBubble>
+  if (message.card)
     return (
-      <Message align="end">
-        <MessageContent>
-          <Bubble align="end" variant="muted">
-            <BubbleContent className="whitespace-pre-wrap">{message.text}</BubbleContent>
-          </Bubble>
-        </MessageContent>
-      </Message>
+      <div className="flex flex-col gap-3">
+        <MessageCard agentId={agentId} messageId={message.id} card={message.card} />
+      </div>
     )
-
   return (
-    <Message align="start">
-      <MessageContent>
-        {message.card ? (
-          <MessageCard agentId={agentId} messageId={message.id} card={message.card} />
-        ) : (
-          <>
-            <TextPart text={message.text ?? ""} />
-            <MessageActions text={message.text ?? ""} />
-          </>
-        )}
-      </MessageContent>
-    </Message>
+    <div className="text-ink">
+      <TextPart text={message.text ?? ""} />
+      <MessageActions text={message.text ?? ""} time={timeIn(message.createdAt, organizationTimeZone)} />
+    </div>
   )
 }
