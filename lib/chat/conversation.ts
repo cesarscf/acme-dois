@@ -106,11 +106,9 @@ export async function sendMessage(
   ])
   const asked: Anthropic.Beta.BetaMessageParam[] = [
     { role: "user", content: text },
-    {
-      role: "system",
-      content: turnContext({ speaker: member, team, now, timeZone: organizationTimeZone }),
-      clear_at: "next_user_message",
-    },
+    // Not cleared at the next user message: a tool result is one too, so the agent would lose the
+    // date as soon as it read the agenda. Each turn adds its own; the prompt says to use the latest.
+    { role: "system", content: turnContext({ speaker: member, team, now, timeZone: organizationTimeZone }) },
   ]
 
   let turn

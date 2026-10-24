@@ -31,7 +31,7 @@ export function createAnthropicModel(client = new Anthropic()): Model {
     const message = await client.beta.messages.create({
       model: "claude-opus-5-5",
       max_tokens: 16_000,
-      betas: ["server-side-fallback-2026-07-01", "mid-conversation-system-clear-at-2026-08-21"],
+      betas: ["server-side-fallback-2026-07-01"],
       // A policy decline is retried on a fallback model inside the same call.
       fallbacks: "default",
       // Chat with the team about the agenda is light work.

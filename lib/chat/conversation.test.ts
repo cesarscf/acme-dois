@@ -237,7 +237,8 @@ describe("a team agent", () => {
     await sendMessage(ana, lia, "Oi", { model, now })
     const [first] = requests
     expect(first.messages[0]).toEqual({ role: "user", content: "Oi" })
-    expect(first.messages[1]).toMatchObject({ role: "system", clear_at: "next_user_message" })
+    // Kept, not cleared at the next user message: a tool result counts as one.
+    expect(first.messages[1]).toEqual({ role: "system", content: expect.any(String) })
     const context = first.messages[1].content as string
     expect(context).toContain("Agora: 2026-10-23 09:00")
     expect(context).toContain(`Quem fala com você: Ana (member_id ${ana.id})`)
