@@ -57,6 +57,13 @@
       "when": 1792821885655,
       "tag": "0007_groups",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792856440428,
+      "tag": "0008_more_mascot_shapes",
+      "breakpoints": true
     }
   ]
 }

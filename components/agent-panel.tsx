@@ -9,7 +9,7 @@ import { colorNames, shapeNames } from "@/components/appearance-form"
 import { GroupAvatar } from "@/components/group-avatar"
 import { EditableText, PanelTabs, SidePanel } from "@/components/side-panel"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { type AgentLook, avatarColors, avatarShapes } from "@/lib/agent/look"
+import { type AgentLook, avatarColorsInOrder, avatarShapes } from "@/lib/agent/look"
 import { cn } from "@/lib/utils"
 
 export type AgentProfile = {
@@ -160,7 +160,7 @@ function LookPicker({ agent }: { agent: AgentProfile }) {
             Desfazer
           </button>
         </div>
-        <div role="radiogroup" aria-label="Forma" className="flex flex-wrap justify-center gap-1.5 px-4 pt-4">
+        <div role="radiogroup" aria-label="Forma" className="mx-auto grid w-fit grid-cols-5 gap-1.5 px-4 pt-4">
           {avatarShapes.map((shape) => (
             <button
               key={shape}
@@ -180,7 +180,7 @@ function LookPicker({ agent }: { agent: AgentProfile }) {
           ))}
         </div>
         <div role="radiogroup" aria-label="Cor" className="flex flex-wrap justify-center gap-2.5 px-4 pt-4 pb-5">
-          {avatarColors.map((color) => (
+          {avatarColorsInOrder.map((color) => (
             <button
               key={color}
               type="button"

@@ -16,7 +16,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { type AgentLook, avatarColors, avatarShapes, nextLook } from "@/lib/agent/look"
+import { type AgentLook, avatarColorsInOrder, avatarShapes, nextLook } from "@/lib/agent/look"
 import { cn } from "@/lib/utils"
 
 type Props = GroupCandidates & {
@@ -146,7 +146,7 @@ function NewAgentForm({
           className="h-11 w-full rounded-2xl border border-line bg-transparent px-4 text-center text-[15px] text-ink outline-none placeholder:text-faint focus:border-ink/40"
         />
 
-        <div role="radiogroup" aria-label="Forma" className="flex flex-wrap justify-center gap-1.5">
+        <div role="radiogroup" aria-label="Forma" className="grid grid-cols-5 gap-1.5">
           {avatarShapes.map((shape) => (
             <button
               key={shape}
@@ -167,7 +167,7 @@ function NewAgentForm({
         </div>
 
         <div role="radiogroup" aria-label="Cor" className="flex flex-wrap justify-center gap-2.5">
-          {avatarColors.map((color) => (
+          {avatarColorsInOrder.map((color) => (
             <button
               key={color}
               type="button"

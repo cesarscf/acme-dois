@@ -3,7 +3,7 @@
 import { CheckIcon } from "lucide-react"
 import { AgentAvatar } from "@/components/agent-avatar"
 import { SalteCard } from "@/components/salte"
-import { type AgentLook, avatarColors, avatarShapes, type AvatarShape } from "@/lib/agent/look"
+import { type AgentLook, avatarColors, avatarColorsInOrder, avatarShapes, type AvatarShape } from "@/lib/agent/look"
 import { cn } from "@/lib/utils"
 
 export const shapeNames: Record<AvatarShape, string> = {
@@ -14,6 +14,14 @@ export const shapeNames: Record<AvatarShape, string> = {
   hexagon: "Hexágono",
   star: "Estrela",
   capsule: "Cápsula",
+  clover: "Trevo",
+  flower: "Flor",
+  burst: "Sol",
+  pick: "Palheta",
+  cloud: "Nuvem",
+  bean: "Feijão",
+  egg: "Ovo",
+  pumpkin: "Abóbora",
 }
 
 export const colorNames: Record<(typeof avatarColors)[number], string> = {
@@ -25,6 +33,9 @@ export const colorNames: Record<(typeof avatarColors)[number], string> = {
   "#2ea603": "Verde",
   "#e74c3c": "Vermelho",
   "#f5b700": "Amarelo",
+  "#f4f4f5": "Branco",
+  "#a0693c": "Marrom",
+  "#8a8a94": "Cinza",
 }
 
 const sectionLabel = "mb-2 text-[12.5px] font-medium text-sub"
@@ -45,7 +56,7 @@ export function AppearanceForm({ name, look, onChange }: Props) {
 
         <div className="min-w-0 flex-1">
           <div className={sectionLabel}>Forma</div>
-          <div role="radiogroup" aria-label="Forma" className="grid grid-cols-4 gap-1.5 sm:grid-cols-7">
+          <div role="radiogroup" aria-label="Forma" className="grid grid-cols-5 gap-1.5">
             {avatarShapes.map((shape) => {
               const picked = look.shape === shape
               return (
@@ -69,7 +80,7 @@ export function AppearanceForm({ name, look, onChange }: Props) {
 
           <div className={cn(sectionLabel, "mt-4")}>Cor</div>
           <div role="radiogroup" aria-label="Cor" className="flex flex-wrap gap-2">
-            {avatarColors.map((color) => {
+            {avatarColorsInOrder.map((color) => {
               const picked = look.color === color
               return (
                 <button
