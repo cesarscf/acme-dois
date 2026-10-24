@@ -1,6 +1,8 @@
 import { z } from "zod"
 import { listAgents, findAgent } from "../organization/agents"
+import { createInvite, listPendingInvites } from "../organization/invites"
 import { findOrganizationProfile, saveOrganizationProfile } from "../organization/profile"
+import { listTeam } from "../agenda/team"
 import { agendaTools, baseAgendaTools } from "./agenda-tools"
 import type { ProposedAgent, TeamCard } from "./cards"
 import { type AgentLook, nextLook } from "./look"
@@ -56,12 +58,14 @@ export const readOrganizationTool = defineTool({
   name: "read_organization",
   label: "Ver a equipe de agentes",
   description:
-    "Lê o que já está combinado: como a clínica trabalha e os agentes da equipe, com função, ferramentas e o que fazem sozinhos.",
+    "Lê o que já está combinado: como a clínica trabalha, as pessoas da equipe e os convites pendentes, e os agentes, com função, ferramentas e o que fazem sozinhos.",
   input: z.object({}),
   async run(_, { member }) {
-    const [profile, agents] = await Promise.all([
+    const [profile, agents, people, invites] = await Promise.all([
       findOrganizationProfile(member.organizationId),
       listAgents(member),
+      listTeam(member.organizationId),
+      listPendingInvites(member),
     ])
     const team = await Promise.all(
       agents.filter((agent) => agent.kind === "team").map((agent) => findAgent(member, agent.id)),
@@ -69,6 +73,8 @@ export const readOrganizationTool = defineTool({
     return {
       output: {
         profile: profile ?? null,
+        people: people.map((person) => person.name),
+        pending_invites: invites.map((invite) => invite.email),
         agents: team.flatMap((agent) =>
           agent
             ? [
@@ -192,9 +198,35 @@ export const chooseAgentLookTool = defineTool({
   },
 })
 
+export const inviteMemberTool = defineTool({
+  name: "invite_member",
+  label: "Convidar alguém da equipe",
+  description:
+    "Convida uma pessoa da equipe para a clínica no Acme e mostra ao membro um card com o link do convite, para ele mandar a ela (por WhatsApp, por exemplo). O link vale 7 dias e só funciona com o e-mail convidado. Depois que ela entrar, os agentes podem marcar sessões com ela.",
+  input: z.object({
+    name: z.string().trim().min(1).max(80).describe("Como o membro chama a pessoa, como Joana."),
+    email: z.email().describe("O e-mail da pessoa, que ela vai usar para entrar."),
+  }),
+  async run({ name, email }, { member }) {
+    const invite = await createInvite(member, { email })
+    return {
+      output: `Convite criado para ${invite.email}. Mostrei o link num card para o membro mandar a ${name}.`,
+      card: {
+        type: "invite",
+        name,
+        email: invite.email,
+        path: `/invites/${invite.id}`,
+        expiresAt: invite.expiresAt.toISOString(),
+        status: "sent",
+      },
+    }
+  },
+})
+
 export const setupTools = [
   saveOrganizationProfileTool,
   readOrganizationTool,
   proposeTeamTool,
   chooseAgentLookTool,
+  inviteMemberTool,
 ]

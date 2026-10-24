@@ -8,5 +8,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api/auth|sign-in|sign-up|_next|favicon.ico).*)"],
+  // Invite links open for anyone; the page itself sends them to sign in.
+  matcher: ["/((?!api/auth|sign-in|sign-up|invites|_next|favicon.ico).*)"],
 }

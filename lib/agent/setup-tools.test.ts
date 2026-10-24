@@ -49,6 +49,8 @@ test("read_organization shows the profile and the team, not the setup agent", as
   const execution = await run("read_organization", {})
   expect(JSON.parse(execution.result.content as string)).toEqual({
     profile: null,
+    people: ["Ana"],
+    pending_invites: [],
     agents: [{ id: created.id, name: "Lia", role: "Secretária da agenda", tools: ["read_agenda"], acts_alone: [] }],
   })
 })
@@ -144,5 +146,30 @@ describe("choose_agent_look", () => {
     const [setup] = await import("../organization/agents").then(({ listAgents }) => listAgents(ana))
     expect(setup.name).toBe(setupAgent.name)
     expect((await run("choose_agent_look", { agent_id: setup.id })).result.is_error).toBe(true)
+  })
+})
+
+describe("invite_member", () => {
+  test("invites the email and shows the link to send", async () => {
+    const execution = await run("invite_member", { name: "Joana", email: "Joana@Clinica.com" })
+    expect(execution.card).toMatchObject({
+      type: "invite",
+      name: "Joana",
+      email: "joana@clinica.com",
+      path: expect.stringMatching(/^\/invites\/[0-9a-f-]{36}$/),
+      status: "sent",
+    })
+    const read = JSON.parse((await run("read_organization", {})).result.content as string)
+    expect(read.pending_invites).toEqual(["joana@clinica.com"])
+  })
+
+  test("refuses someone who is already in the team", async () => {
+    const execution = await run("invite_member", { name: "Ana", email: `${ana.userId}@example.com` })
+    expect(execution.result).toMatchObject({ is_error: true, content: `${ana.userId}@example.com já faz parte da clínica.` })
+  })
+
+  test("refuses an invalid email", async () => {
+    const execution = await run("invite_member", { name: "Joana", email: "joana" })
+    expect(execution.result.content).toStartWith("Entrada inválida para invite_member")
   })
 })

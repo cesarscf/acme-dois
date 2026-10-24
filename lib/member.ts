@@ -2,6 +2,8 @@
 export type Member = {
   id: string
   organizationId: string
+  // The account behind the membership, which invites name as who sent them.
+  userId: string
   name: string
 }
 

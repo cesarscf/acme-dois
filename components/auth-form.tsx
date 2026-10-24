@@ -11,6 +11,8 @@ import { Input } from "@/components/ui/input"
 type Props = {
   mode: "sign-in" | "sign-up"
   action: (state: AuthState, formData: FormData) => Promise<AuthState>
+  // Opened from an invite: the email is the invited one, and they go back to the invite after.
+  invite?: { id: string; email: string; organizationName: string }
 }
 
 const copy = {
@@ -28,17 +30,20 @@ const copy = {
   },
 } as const
 
-export function AuthForm({ mode, action }: Props) {
+export function AuthForm({ mode, action, invite }: Props) {
   const [state, formAction, pending] = useActionState(action, undefined)
   const text = copy[mode]
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
         <CardTitle>{text.title}</CardTitle>
-        <CardDescription>{text.description}</CardDescription>
+        <CardDescription>
+          {invite ? `Para entrar na equipe da ${invite.organizationName}, use ${invite.email}.` : text.description}
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <form action={formAction}>
+          {invite ? <input type="hidden" name="invite" value={invite.id} /> : null}
           <FieldGroup>
             {mode === "sign-up" ? (
               <Field>
@@ -48,7 +53,14 @@ export function AuthForm({ mode, action }: Props) {
             ) : null}
             <Field>
               <FieldLabel htmlFor="email">E-mail</FieldLabel>
-              <Input id="email" name="email" type="email" autoComplete="email" required />
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                defaultValue={invite?.email}
+                required
+              />
             </Field>
             <Field>
               <FieldLabel htmlFor="password">Senha</FieldLabel>
@@ -64,7 +76,7 @@ export function AuthForm({ mode, action }: Props) {
             <Button type="submit" disabled={pending}>
               {text.submit}
             </Button>
-            <Link href={text.other.href} className="text-center text-sm text-muted-foreground underline-offset-4 hover:underline">
+            <Link href={invite ? `${text.other.href}?invite=${invite.id}` : text.other.href} className="text-center text-sm text-muted-foreground underline-offset-4 hover:underline">
               {text.other.label}
             </Link>
           </FieldGroup>

@@ -21,7 +21,7 @@ export const requireMember = cache(async (): Promise<Member> => {
     .from(member)
     .where(and(eq(member.organizationId, organizationId), eq(member.userId, session.user.id)))
   if (!found) redirect("/onboarding")
-  return { id: found.id, organizationId, name: session.user.name }
+  return { id: found.id, organizationId, userId: session.user.id, name: session.user.name }
 })
 
 export const getOrganizationName = cache(async (organizationId: string) => {

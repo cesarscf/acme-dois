@@ -3,6 +3,7 @@ import { z } from "zod"
 import { AgendaError } from "../agenda/appointments"
 import type { Member } from "../member"
 import { AgentError } from "../organization/agents"
+import { InviteError } from "../organization/invites"
 import type { ApprovalCard, Card, CardAction } from "./cards"
 
 export type ToolContext = {
@@ -93,7 +94,8 @@ export function createToolRegistry(tools: Tool[]) {
         if (
           failure instanceof ToolRefusal ||
           failure instanceof AgendaError ||
-          failure instanceof AgentError
+          failure instanceof AgentError ||
+          failure instanceof InviteError
         )
           return error(call, failure.message)
         console.error(`Tool ${call.name} failed`, failure)

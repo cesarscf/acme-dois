@@ -2,6 +2,7 @@
 
 import { useTransition } from "react"
 import { actOnCardAction } from "@/app/actions"
+import { InviteCard } from "@/components/invite-card"
 import { LookCard } from "@/components/look-card"
 import { TeamCard } from "@/components/team-card"
 import {
@@ -22,6 +23,7 @@ export function MessageCard({ agentId, messageId, card }: Props) {
 
   if (card.type === "look") return <LookCard agentId={agentId} messageId={messageId} card={card} />
   if (card.type === "team") return <TeamCard agentId={agentId} messageId={messageId} card={card} />
+  if (card.type === "invite") return <InviteCard card={card} />
   if (card.type === "receipt") return <Receipt card={card} pending={pending} onUndo={() => act("undo")} />
   return <Approval card={card} pending={pending} onChoose={act} />
 }

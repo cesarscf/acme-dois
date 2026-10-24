@@ -29,6 +29,9 @@ export const auth = betterAuth({
   // nextCookies must stay last: it sets the cookies of auth calls made inside Server Actions.
   plugins: [
     organization({
+      // Invites are links shared by hand and must be opened with the invited email; nobody's
+      // email is verified here, so verifying it can't be the condition to accept.
+      requireEmailVerificationOnInvitation: false,
       organizationHooks: {
         afterCreateOrganization: ({ organization }) => createSetupAgent(organization.id),
       },

@@ -36,7 +36,18 @@ export type LookCard = {
   status: "pending" | "chosen"
 }
 
-export type Card = ReceiptCard | ApprovalCard | TeamCard | LookCard
+// A link to join the organization, for the member to send to whoever they invited.
+export type InviteCard = {
+  type: "invite"
+  name: string
+  email: string
+  // The invite page's path; the browser adds its own origin.
+  path: string
+  expiresAt: string
+  status: "sent"
+}
+
+export type Card = ReceiptCard | ApprovalCard | TeamCard | LookCard | InviteCard
 
 // Puts `restore` back on an appointment while it is still at `updatedAt`.
 export type Restore = {

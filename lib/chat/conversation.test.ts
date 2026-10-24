@@ -73,6 +73,7 @@ describe("the setup agent", () => {
       "read_organization",
       "propose_team",
       "choose_agent_look",
+      "invite_member",
     ])
     expect((await shown(ana, setup)).map((row) => row.author)).toEqual(["agent", "member", "agent"])
   })

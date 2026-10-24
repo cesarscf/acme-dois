@@ -144,7 +144,9 @@ const aboutOf = (card: Card) =>
     ? `${card.title}: ${card.detail}`
     : card.type === "look"
       ? `Aparência de ${card.agentName}`
-      : card.title
+      : card.type === "invite"
+        ? `Convite para ${card.name}`
+        : card.title
 
 // What the agent is told happened to its card, so the next turn knows.
 function noteOf(member: Member, card: Card, detail?: string) {
