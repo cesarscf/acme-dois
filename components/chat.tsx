@@ -29,11 +29,6 @@ export function Chat({ agentId, agentName, messages }: Props) {
       {/* Reversed, so the list starts scrolled to the latest message. */}
       <div className="flex flex-1 flex-col-reverse overflow-y-auto">
         <ol className="flex flex-col gap-3 p-4">
-          {shown.length === 0 ? (
-            <li className="text-sm text-muted-foreground">
-              Peça para {agentName} algo do trabalho dele, como “Quem eu atendo amanhã?”.
-            </li>
-          ) : null}
           {shown.map((message) => (
             <li
               key={message.id}

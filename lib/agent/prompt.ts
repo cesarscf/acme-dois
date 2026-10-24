@@ -2,6 +2,7 @@ import type { Agent } from "../organization/agents"
 import { setupAgent } from "../organization/agents"
 import type { OrganizationProfile } from "../organization/profile"
 import { dayIn, timeIn } from "../time"
+import { agendaTools, cancelAppointmentTool } from "./agenda-tools"
 
 // Written by the app, not the model: it opens the setup agent's conversation with each member.
 export const welcomeText = (memberName: string) =>
@@ -39,9 +40,41 @@ const agendaRules = `Como trabalhar:
 - Se uma ferramenta recusar, explique o motivo em uma frase e diga o que dá para fazer.
 - Se pedirem algo fora do seu trabalho, diga que não é com você e sugira falar com a ${setupAgent.name} para montar um agente para isso.`
 
+// "a, b e c"
+const listed = (items: string[]) =>
+  items.length > 1 ? `${items.slice(0, -1).join(", ")} e ${items.at(-1)}` : (items[0] ?? "")
+
+type Charter = Pick<Agent, "name" | "role" | "tools" | "actsAlone">
+
+// Written by the app from the charter, not the model: it opens each member's conversation with a
+// team agent as soon as the agent exists.
+export function introText(agent: Charter, memberName: string) {
+  const changes = agendaTools.filter((tool) => tool.confirm && agent.tools.includes(tool.name))
+  const named = (alone: boolean) =>
+    changes
+      .filter((tool) => agent.actsAlone.includes(tool.name) === alone)
+      .map((tool) => tool.label.toLowerCase())
+  const [alone, asks] = [named(true), named(false)]
+  const cancels = agent.tools.includes(cancelAppointmentTool.name)
+  return [
+    `Oi, ${memberName}! Eu sou ${agent.name}, ${agent.role}. Acabei de chegar na equipe.`,
+    alone.length ? `Faço sem te perguntar: ${listed(alone)}.` : null,
+    asks.length ? `Te pergunto antes de ${listed(asks)}.` : null,
+    cancels ? "Cancelar uma sessão, só com a sua confirmação." : null,
+    !changes.length && !cancels ? "Eu leio a agenda e te conto o que você precisar." : null,
+    "",
+    "Pra começar, me pergunte: “Quem eu atendo amanhã?”",
+  ]
+    .filter((line) => line !== null)
+    .join("\n")
+}
+
 // A team agent's prompt, from its charter: stable until the charter or the profile changes.
 export function teamPrompt(agent: Agent, profile: OrganizationProfile | undefined) {
   return `Você é ${agent.name}, ${agent.role} da clínica, um agente de agenda no Acme. A equipe te criou com a ${setupAgent.name}.
+
+A conversa já começou com esta mensagem sua, escrita pelo app:
+"${introText(agent, "{nome do membro}")}"
 
 Suas instruções permanentes, como a equipe confirmou:
 ${agent.instructions}

@@ -5,7 +5,7 @@ import { listTeam } from "../agenda/team"
 import { agendaTools } from "../agent/agenda-tools"
 import type { Card, CardAction } from "../agent/cards"
 import type { Model } from "../agent/model"
-import { setupPrompt, teamPrompt, turnContext, welcomeText } from "../agent/prompt"
+import { introText, setupPrompt, teamPrompt, turnContext, welcomeText } from "../agent/prompt"
 import { type AgentReply, runTurn, unanswered } from "../agent/run-turn"
 import { setupTools } from "../agent/setup-tools"
 import { createToolRegistry, type ToolContext } from "../agent/tool-registry"
@@ -43,8 +43,9 @@ async function harnessFor(member: Member, agent: Agent, now: Date) {
 const inConversation = (member: Member, agent: Agent) =>
   and(eq(message.memberId, member.id), eq(message.agentId, agent.id))
 
-// What the member's browser gets: never a card's action. The setup agent's conversation opens with
-// the app's welcome, which is never stored.
+// What the member's browser gets: never a card's action. Every conversation opens with the agent's
+// first message, written by the app from what the agent is and never stored, so each member,
+// including those who join later, finds it there.
 export async function listMessages(member: Member, agent: Agent) {
   const rows = await db
     .select({
@@ -57,15 +58,14 @@ export async function listMessages(member: Member, agent: Agent) {
     .from(message)
     .where(inConversation(member, agent))
     .orderBy(asc(message.createdAt))
-  if (agent.kind !== "setup") return rows
-  const welcome = {
-    id: `welcome-${agent.id}`,
+  const first = {
+    id: `first-${agent.id}`,
     author: "agent" as const,
-    text: welcomeText(member.name),
+    text: agent.kind === "setup" ? welcomeText(member.name) : introText(agent, member.name),
     card: null,
     createdAt: agent.createdAt,
   }
-  return [welcome, ...rows]
+  return [first, ...rows]
 }
 
 export type ChatMessage = Awaited<ReturnType<typeof listMessages>>[number]

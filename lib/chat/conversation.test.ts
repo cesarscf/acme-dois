@@ -4,7 +4,7 @@ import { scriptedModel, says, uses } from "@/test/scripted-model"
 import { createAppointment, findAppointment, listAppointments } from "../agenda/appointments"
 import { createCustomer } from "../agenda/customers"
 import type { Model } from "../agent/model"
-import { setupPrompt, welcomeText } from "../agent/prompt"
+import { introText, setupPrompt, welcomeText } from "../agent/prompt"
 import { unanswered } from "../agent/run-turn"
 import type { Member } from "../member"
 import { type Agent, createAgents, findAgent, listAgents } from "../organization/agents"
@@ -153,7 +153,31 @@ describe("a team agent", () => {
     expect(requests[0].system).toContain("Você marca as sessões que a equipe pedir.")
     expect(requests[0].system).toContain("Pilates, sessões de 40 minutos.")
     expect(requests[0].tools.map((tool) => tool.name)).toEqual(["find_customers", "read_agenda"])
-    expect(await listMessages(ana, lia)).toHaveLength(2)
+    expect(requests[0].system).toContain(`"${introText(lia, "{nome do membro}")}"`)
+    expect((await shown(ana, lia)).map((row) => row.author)).toEqual(["agent", "member", "agent"])
+  })
+
+  test("opens every member's conversation with its introduction, as soon as it exists", async () => {
+    const lia = await teamAgent({
+      tools: ["find_customers", "read_agenda", "create_appointment", "reschedule_appointment", "cancel_appointment"],
+      actsAlone: ["create_appointment"],
+    })
+    expect(await shown(bia, lia)).toEqual([{ author: "agent", text: introText(lia, "Bia"), card: null }])
+    expect(introText(lia, "Bia")).toBe(
+      [
+        "Oi, Bia! Eu sou Lia, Secretária da agenda. Acabei de chegar na equipe.",
+        "Faço sem te perguntar: marcar sessões.",
+        "Te pergunto antes de remarcar sessões.",
+        "Cancelar uma sessão, só com a sua confirmação.",
+        "",
+        "Pra começar, me pergunte: “Quem eu atendo amanhã?”",
+      ].join("\n"),
+    )
+  })
+
+  test("an agent that only reads says so in its introduction", async () => {
+    const lia = await teamAgent({ tools: ["find_customers", "read_agenda"], actsAlone: [] })
+    expect(introText(lia, "Ana").split("\n")[1]).toBe("Eu leio a agenda e te conto o que você precisar.")
   })
 
   test("can't run a tool its charter doesn't give it, whatever the model asks", async () => {
@@ -195,7 +219,7 @@ describe("a team agent", () => {
     const lia = await teamAgent()
     const { model } = scriptedModel(says("Oi, Ana!"))
     await sendMessage(ana, lia, "Oi", { model, now })
-    expect(await listMessages(bia, lia)).toEqual([])
+    expect(await listMessages(bia, lia)).toHaveLength(1)
     expect(await listMessages(ana, setup)).toHaveLength(1)
   })
 
